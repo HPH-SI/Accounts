@@ -1,0 +1,150 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  // Note: For Supabase, you can optionally add directUrl for better migration performance
+  // If not provided, Prisma will use DATABASE_URL for migrations
+  // directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      String   @default("STAFF") // ADMIN, STAFF, VIEWER
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  documents     Document[]
+  payments      Payment[]
+  emailLogs     EmailLog[]
+  activityLogs  ActivityLog[]
+}
+
+model Customer {
+  id          String   @id @default(cuid())
+  name        String
+  type        String   // "COMPANY" or "INDIVIDUAL"
+  address     String?
+  emails      String   // JSON array of emails (comma-separated or JSON)
+  phone       String?
+  taxNumber   String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  documents   Document[]
+  payments    Payment[]
+
+  @@index([name])
+}
+
+model Document {
+  id              String       @id @default(cuid())
+  documentNumber  String       @unique
+  type            String       // QUOTATION, PROFORMA, INVOICE
+  customerId      String
+  customer        Customer     @relation(fields: [customerId], references: [id])
+  userId          String
+  user            User         @relation(fields: [userId], references: [id])
+  
+  lineItems       String       // JSON array of line items
+  subtotal        Float        @default(0)
+  taxAmount       Float        @default(0)
+  totalAmount     Float        @default(0)
+  
+  terms           String?
+  notes           String?
+  
+  status          String       @default("DRAFT") // DRAFT, SENT, APPROVED, ISSUED
+  
+  convertedFromId String?      // ID of document this was converted from
+  convertedFrom   Document?    @relation("DocumentConversion", fields: [convertedFromId], references: [id])
+  convertedTo     Document[]   @relation("DocumentConversion")
+  
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  issueDate       DateTime?
+  
+  payments        Payment[]
+  emailLogs       EmailLog[]
+
+  @@index([customerId])
+  @@index([type])
+  @@index([documentNumber])
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  documentId    String
+  document      Document      @relation(fields: [documentId], references: [id])
+  customerId    String
+  customer      Customer      @relation(fields: [customerId], references: [id])
+  userId        String
+  user          User          @relation(fields: [userId], references: [id])
+  
+  amount        Float
+  paymentMethod String        // CASH, BANK_TRANSFER, CHEQUE, CREDIT_CARD, OTHER
+  dateReceived  DateTime
+  reference     String?
+  notes         String?
+  
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([documentId])
+  @@index([customerId])
+}
+
+model EmailLog {
+  id            String      @id @default(cuid())
+  documentId    String
+  document      Document      @relation(fields: [documentId], references: [id])
+  userId        String
+  user          User        @relation(fields: [userId], references: [id])
+  
+  to            String      // JSON array
+  cc            String?     // JSON array
+  bcc           String?     // JSON array
+  subject       String
+  body          String
+  status        String        // SENT, FAILED
+  errorMessage  String?
+  
+  sentAt        DateTime    @default(now())
+
+  @@index([documentId])
+  @@index([userId])
+}
+
+model ActivityLog {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  
+  action      String   // "DOCUMENT_CREATED", "PAYMENT_RECORDED", "EMAIL_SENT", etc.
+  entityType  String   // "DOCUMENT", "PAYMENT", "EMAIL", etc.
+  entityId    String?
+  details     String?  // JSON
+  
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model SystemSettings {
+  id            String   @id @default(cuid())
+  key           String   @unique
+  value         String
+  description   String?
+  updatedAt     DateTime @updatedAt
+}
+
