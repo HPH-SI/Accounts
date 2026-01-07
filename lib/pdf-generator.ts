@@ -24,14 +24,14 @@ export async function generateDocumentPDF(
 
   // Document Type on top left
   doc.setFontSize(18)
-  doc.setFont(undefined, 'bold')
+  doc.setFont('helvetica', 'bold')
   const docType = document.type === 'PROFORMA' ? 'PROFORMA INVOICE' : document.type
   doc.text(docType, margin, yPos)
   yPos += 8
 
   // Date below document type
   doc.setFontSize(11)
-  doc.setFont(undefined, 'normal')
+  doc.setFont('helvetica', 'normal')
   const docDate = document.issueDate 
     ? new Date(document.issueDate).toLocaleDateString('en-GB', { 
         day: '2-digit', 
@@ -90,10 +90,10 @@ export async function generateDocumentPDF(
   // From section (Heritage Park Hotel details)
   yPos = margin + 25
   doc.setFontSize(11)
-  doc.setFont(undefined, 'bold')
+  doc.setFont('helvetica', 'bold')
   doc.text('From:', margin, yPos)
   yPos += 7
-  doc.setFont(undefined, 'normal')
+  doc.setFont('helvetica', 'normal')
   doc.text('Heritage Park Hotel,', margin, yPos)
   yPos += 6
   doc.text('P.O Box 1598,', margin, yPos)
@@ -108,10 +108,10 @@ export async function generateDocumentPDF(
   yPos += 15
 
   // To section (Customer details)
-  doc.setFont(undefined, 'bold')
+  doc.setFont('helvetica', 'bold')
   doc.text('To:', margin, yPos)
   yPos += 7
-  doc.setFont(undefined, 'normal')
+  doc.setFont('helvetica', 'normal')
   doc.text(document.customer.name, margin, yPos)
   yPos += 6
   if (document.customer.address) {
@@ -149,7 +149,7 @@ export async function generateDocumentPDF(
 
   // Table Header
   doc.setFontSize(10)
-  doc.setFont(undefined, 'bold')
+  doc.setFont('helvetica', 'bold')
   const tableStartY = yPos
   const colWidths = {
     qty: 20,
@@ -177,7 +177,7 @@ export async function generateDocumentPDF(
   yPos += 5
 
   // Table rows
-  doc.setFont(undefined, 'normal')
+  doc.setFont('helvetica', 'normal')
   lineItems.forEach((item) => {
     if (yPos > 250) {
       doc.addPage()
@@ -220,7 +220,7 @@ export async function generateDocumentPDF(
     yPos += 7
   }
   doc.setFontSize(12)
-  doc.setFont(undefined, 'bold')
+  doc.setFont('helvetica', 'bold')
   doc.text(`Total: $${document.totalAmount.toFixed(2)}`, totalsX, yPos)
   yPos += 15
 
@@ -228,7 +228,7 @@ export async function generateDocumentPDF(
   if (document.type === 'INVOICE' && document.payments) {
     const totalPaid = document.payments.reduce((sum, p) => sum + p.amount, 0)
     doc.setFontSize(11)
-    doc.setFont(undefined, 'normal')
+    doc.setFont('helvetica', 'normal')
     doc.text(`Paid: $${totalPaid.toFixed(2)}`, totalsX, yPos)
     yPos += 7
     const outstanding = document.totalAmount - totalPaid

@@ -1,17 +1,16 @@
 import { prisma } from './prisma'
-import { DocumentType } from '@prisma/client'
 
-export async function generateDocumentNumber(type: DocumentType): Promise<string> {
+export async function generateDocumentNumber(type: string): Promise<string> {
   const year = new Date().getFullYear()
   
   // Get prefix from settings or use defaults
-  const prefixMap: Record<DocumentType, string> = {
+  const prefixMap: Record<string, string> = {
     QUOTATION: process.env.QUOTATION_PREFIX || 'QUO',
     PROFORMA: process.env.PROFORMA_PREFIX || 'PI',
     INVOICE: process.env.INVOICE_PREFIX || 'INV',
   }
   
-  const prefix = prefixMap[type]
+  const prefix = prefixMap[type] || 'DOC'
   
   // Find the highest number for this year and type
   const lastDoc = await prisma.document.findFirst({

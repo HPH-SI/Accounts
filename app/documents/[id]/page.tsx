@@ -23,6 +23,7 @@ interface Document {
   totalAmount: number
   terms?: string
   notes?: string
+  issueDate?: string | Date | null
   payments: Array<{
     id: string
     amount: number
