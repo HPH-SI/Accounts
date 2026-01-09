@@ -16,6 +16,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { name: 'Analytics', href: '/analytics' },
     { name: 'Reports', href: '/reports' },
     { name: 'Settings', href: '/settings' },
+    ...(session?.user?.role === 'ADMIN'
+      ? [{ name: 'Users', href: '/users' }]
+      : []),
   ]
 
   return (
@@ -26,7 +29,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <div className="flex">
               <div className="flex-shrink-0 flex items-center">
                 <h1 className="text-xl font-bold text-primary-600">
-                  Accounts Software
+                  Heritage Park Hotel Accounts
                 </h1>
               </div>
               <div className="hidden sm:ml-6 sm:flex sm:space-x-8">

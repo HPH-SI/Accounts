@@ -1,4 +1,4 @@
-# Accounts Software
+# Heritage Park Hotel Accounts
 
 A comprehensive financial document management system for creating and managing Quotations, Proforma Invoices, and Invoices.
 
@@ -61,8 +61,9 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 ## Default Login
 
 After seeding:
-- Email: admin@example.com
-- Password: admin123
+- **Admin**: admin@hphaccounts.com / admin123
+- **Staff**: staff@hphaccounts.com / staff123
+- **Viewer**: viewer@hphaccounts.com / viewer123
 
 ## Tech Stack
 

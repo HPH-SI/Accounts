@@ -4,6 +4,7 @@ import jsPDF from 'jspdf'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
 import { existsSync } from 'fs'
+import sizeOf from 'image-size'
 
 interface LineItem {
   description: string
@@ -47,7 +48,8 @@ export async function generateDocumentPDF(
   yPos += 15
 
   // Logo on right (if available)
-  const logoX = pageWidth - margin - 50
+  const logoWidth = 70 // Increased width for better visibility
+  const logoX = pageWidth - margin - logoWidth
   const logoY = margin
   let logoAdded = false
   
@@ -61,19 +63,34 @@ export async function generateDocumentPDF(
         const logoBase64 = logoData.toString('base64')
         const logoMimeType = ext === 'png' ? 'PNG' : ext === 'jpg' || ext === 'jpeg' ? 'JPEG' : 'GIF'
         
-        // Add image to PDF (width: 50, height: auto based on aspect ratio)
+        // Get image dimensions to maintain aspect ratio
+        let logoHeight = logoWidth * 0.4 // Default aspect ratio
+        try {
+          const dimensions = sizeOf(logoPath)
+          if (dimensions.width && dimensions.height) {
+            // Calculate height maintaining aspect ratio
+            const aspectRatio = dimensions.height / dimensions.width
+            logoHeight = logoWidth * aspectRatio
+          }
+        } catch (dimError) {
+          // If dimension reading fails, use default aspect ratio
+          console.warn('Could not read logo dimensions, using default aspect ratio')
+        }
+        
+        // Add image to PDF with proper aspect ratio
         doc.addImage(
           `data:image/${ext === 'jpg' ? 'jpeg' : ext};base64,${logoBase64}`,
           logoMimeType,
           logoX,
           logoY,
-          50,
-          20
+          logoWidth,
+          logoHeight
         )
         logoAdded = true
         break
       } catch (error) {
         // Continue to next format if this one fails
+        console.error(`Failed to load logo.${ext}:`, error)
         continue
       }
     }

@@ -3,12 +3,14 @@
 import { useState } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [logoError, setLogoError] = useState(false)
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -39,8 +41,22 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
+          {!logoError && (
+            <div className="flex justify-center mb-4">
+              <div className="relative w-48 h-20">
+                <Image
+                  src="/logo.png"
+                  alt="Heritage Park Hotel Logo"
+                  fill
+                  className="object-contain"
+                  priority
+                  onError={() => setLogoError(true)}
+                />
+              </div>
+            </div>
+          )}
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Accounts Software
+            Heritage Park Hotel Accounts
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
             Sign in to your account

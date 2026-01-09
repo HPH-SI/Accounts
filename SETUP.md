@@ -35,9 +35,9 @@
    ```
    
    This creates three default users:
-   - **Admin**: admin@example.com / admin123
-   - **Staff**: staff@example.com / staff123
-   - **Viewer**: viewer@example.com / viewer123
+   - **Admin**: admin@hphaccounts.com / admin123
+   - **Staff**: staff@hphaccounts.com / staff123
+   - **Viewer**: viewer@hphaccounts.com / viewer123
 
 5. **Run Development Server**
    ```bash
