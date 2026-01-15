@@ -29,10 +29,10 @@ npm install
 
 2. Set up environment variables:
 ```bash
-cp .env.example .env
-# Edit .env with your Supabase database password
+# Create .env file (see EMAIL_SETUP.md for email configuration)
+# Edit .env with your Supabase database password and SMTP settings
 # Get your password from: Supabase Dashboard → Settings → Database
-# Replace [YOUR-PASSWORD] in DATABASE_URL and DIRECT_URL
+# Replace [YOUR-PASSWORD] in DATABASE_URL
 ```
 
 3. Set up the database:
