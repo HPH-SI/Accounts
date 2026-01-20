@@ -3,6 +3,7 @@
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { useSession } from 'next-auth/react'
 import { useEffect, useState } from 'react'
+import { downloadElementAsPdf } from '@/lib/download-pdf'
 
 export default function DashboardPage() {
   const { data: session } = useSession()
@@ -56,17 +57,35 @@ export default function DashboardPage() {
     fetchStats()
   }, [])
 
+  async function handleDownloadPdf() {
+    try {
+      await downloadElementAsPdf('pdf-dashboard', 'dashboard')
+    } catch (error: any) {
+      console.error('Dashboard PDF download failed:', error)
+      alert(error?.message || 'Failed to download PDF')
+    }
+  }
+
   return (
     <ProtectedRoute>
       <div className="px-4 py-6 sm:px-0">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Welcome back, {session?.user?.name}
-          </p>
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+            <p className="mt-1 text-sm text-gray-500">
+              Welcome back, {session?.user?.name}
+            </p>
+          </div>
+          <button
+            onClick={handleDownloadPdf}
+            className="px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-800"
+          >
+            Download PDF
+          </button>
         </div>
 
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-5">
+        <div id="pdf-dashboard">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-5">
           <div className="bg-white overflow-hidden shadow rounded-lg">
             <div className="p-5">
               <div className="flex items-center">
@@ -164,6 +183,7 @@ export default function DashboardPage() {
                 </div>
               </div>
             </div>
+          </div>
           </div>
         </div>
       </div>

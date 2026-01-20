@@ -52,9 +52,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
             <div className="flex items-center">
-              <span className="text-sm text-gray-700 mr-4">
-                {session?.user?.name} ({session?.user?.role})
-              </span>
               <button
                 onClick={() => signOut()}
                 className="text-sm text-gray-500 hover:text-gray-700"
@@ -66,6 +63,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </nav>
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        <span className="text-sm text-gray-700 mr-4">
+          {session?.user?.name} ({session?.user?.role})
+        </span>
         {children}
       </main>
     </div>

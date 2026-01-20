@@ -2,6 +2,7 @@
 
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { useState } from 'react'
+import { downloadElementAsPdf } from '@/lib/download-pdf'
 
 export default function ReportsPage() {
   const [reportType, setReportType] = useState('monthly')
@@ -24,12 +25,29 @@ export default function ReportsPage() {
     window.open(`/api/reports/download?${params.toString()}`, '_blank')
   }
 
+  async function handleDownloadPdf() {
+    try {
+      await downloadElementAsPdf('pdf-reports', 'reports')
+    } catch (error: any) {
+      console.error('Reports PDF download failed:', error)
+      alert(error?.message || 'Failed to download PDF')
+    }
+  }
+
   return (
     <ProtectedRoute>
       <div className="px-4 py-6 sm:px-0">
-        <h1 className="text-3xl font-bold text-gray-900 mb-6">Reports</h1>
+        <div className="mb-6 flex items-center justify-between">
+          <h1 className="text-3xl font-bold text-gray-900">Reports</h1>
+          <button
+            onClick={handleDownloadPdf}
+            className="px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-800"
+          >
+            Download PDF
+          </button>
+        </div>
 
-        <div className="bg-white shadow rounded-lg p-6">
+        <div id="pdf-reports" className="bg-white shadow rounded-lg p-6">
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Report Type

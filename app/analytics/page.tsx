@@ -14,6 +14,7 @@ import {
   Legend,
 } from 'chart.js'
 import { Bar, Line } from 'react-chartjs-2'
+import { downloadElementAsPdf, downloadElementAsPng } from '@/lib/download-pdf'
 
 ChartJS.register(
   CategoryScale,
@@ -72,7 +73,7 @@ export default function AnalyticsPage() {
     }
   }
 
-  function downloadChart(format: 'png' | 'pdf' | 'csv') {
+  async function downloadChart(format: 'png' | 'pdf' | 'csv') {
     if (format === 'csv') {
       const csv = [
         ['Period', 'Invoiced', 'Received', 'Variance'],
@@ -93,7 +94,17 @@ export default function AnalyticsPage() {
       a.download = `analytics-${Date.now()}.csv`
       a.click()
     } else {
-      alert('PNG and PDF download will be implemented with chart export library')
+      try {
+        const filename = `analytics-${Date.now()}`
+        if (format === 'png') {
+          await downloadElementAsPng('pdf-analytics', filename)
+        } else {
+          await downloadElementAsPdf('pdf-analytics', filename)
+        }
+      } catch (error: any) {
+        console.error('Analytics download failed:', error)
+        alert(error?.message || 'Failed to download')
+      }
     }
   }
 
@@ -140,7 +151,7 @@ export default function AnalyticsPage() {
       <div className="px-4 py-6 sm:px-0">
         <h1 className="text-3xl font-bold text-gray-900 mb-6">Analytics</h1>
 
-        <div className="bg-white shadow rounded-lg p-6 mb-6">
+        <div id="pdf-analytics" className="bg-white shadow rounded-lg p-6 mb-6">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-4 mb-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">

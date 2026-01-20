@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { canRecordPayment } from '@/lib/permissions'
+import { downloadElementAsPdf } from '@/lib/download-pdf'
 
 interface Payment {
   id: string
@@ -161,6 +162,15 @@ export default function PaymentsPage() {
     }
   }
 
+  async function handleDownloadPdf() {
+    try {
+      await downloadElementAsPdf('pdf-payments', 'payments')
+    } catch (error: any) {
+      console.error('Payments PDF download failed:', error)
+      alert(error?.message || 'Failed to download PDF')
+    }
+  }
+
   function openEditPayment(payment: Payment) {
     setEditingPayment(payment)
     setEditFormData({
@@ -235,19 +245,28 @@ export default function PaymentsPage() {
       <div className="px-4 py-6 sm:px-0">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold text-gray-900">Payments</h1>
-          {canRecord && (
+          <div className="flex items-center space-x-2">
             <button
-              onClick={() => setShowReconciliation(!showReconciliation)}
-              className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
+              onClick={handleDownloadPdf}
+              className="px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-800"
             >
-              {showReconciliation ? 'Hide Reconciliation' : 'Reconcile Payment'}
+              Download PDF
             </button>
-          )}
+            {canRecord && (
+              <button
+                onClick={() => setShowReconciliation(!showReconciliation)}
+                className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
+              >
+                {showReconciliation ? 'Hide Reconciliation' : 'Reconcile Payment'}
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Payment Reconciliation Section */}
-        {showReconciliation && canRecord && (
-          <div className="bg-white shadow rounded-lg p-6 mb-6">
+        <div id="pdf-payments">
+          {/* Payment Reconciliation Section */}
+          {showReconciliation && canRecord && (
+            <div className="bg-white shadow rounded-lg p-6 mb-6">
             <h2 className="text-xl font-semibold mb-4">Payment Reconciliation</h2>
             <form onSubmit={handleSubmitReconciliation} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -371,7 +390,7 @@ export default function PaymentsPage() {
               </div>
             </form>
           </div>
-        )}
+          )}
 
         {/* Edit Payment Modal */}
         {editingPayment && (
@@ -466,14 +485,14 @@ export default function PaymentsPage() {
               </form>
             </div>
           </div>
-        )}
+          )}
 
-        {/* Payments List */}
-        {loading ? (
-          <div className="text-center py-12">Loading...</div>
-        ) : (
-          <div className="bg-white shadow overflow-hidden sm:rounded-md">
-            <table className="min-w-full divide-y divide-gray-200">
+          {/* Payments List */}
+          {loading ? (
+            <div className="text-center py-12">Loading...</div>
+          ) : (
+            <div className="bg-white shadow overflow-hidden sm:rounded-md">
+              <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -567,7 +586,8 @@ export default function PaymentsPage() {
               </div>
             )}
           </div>
-        )}
+          )}
+        </div>
       </div>
     </ProtectedRoute>
   )

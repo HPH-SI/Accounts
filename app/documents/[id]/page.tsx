@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { SENDER_EMAIL_ADDRESSES, DEFAULT_SENDER_EMAIL } from '@/lib/email-config'
 import { canEditDocument } from '@/lib/permissions'
+import { downloadElementAsPdf } from '@/lib/download-pdf'
 
 interface Document {
   id: string
@@ -46,6 +47,7 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
   const [loading, setLoading] = useState(true)
   const [emailModalOpen, setEmailModalOpen] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const [logoError, setLogoError] = useState(false)
   const [emailData, setEmailData] = useState({
     from: DEFAULT_SENDER_EMAIL,
     to: '',
@@ -85,8 +87,9 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
       } else {
         alert('Failed to convert document')
       }
-    } catch (error) {
-      alert('An error occurred')
+    } catch (error: any) {
+      console.error('PDF download failed:', error)
+      alert(error?.message || 'An error occurred')
     }
   }
 
@@ -113,10 +116,23 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
         alert('Email sent successfully')
         setEmailModalOpen(false)
       } else {
-        alert('Failed to send email')
+        const errorPayload = await res.json().catch(() => null)
+        alert(errorPayload?.error || 'Failed to send email')
       }
-    } catch (error) {
-      alert('An error occurred')
+    } catch (error: any) {
+      alert(error?.message || 'An error occurred')
+    }
+  }
+
+  async function handleDownloadPdf() {
+    try {
+      await downloadElementAsPdf(
+        'pdf-document',
+        document?.documentNumber || 'document'
+      )
+    } catch (error: any) {
+      console.error('PDF download failed:', error)
+      alert(error?.message || 'An error occurred')
     }
   }
 
@@ -212,6 +228,14 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
                 Edit
               </button>
             )}
+            {document.type === 'INVOICE' && (
+              <button
+                onClick={handleDownloadPdf}
+                className="px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-800"
+              >
+                Download PDF
+              </button>
+            )}
             {canDelete && (
               <button
                 onClick={handleDelete}
@@ -229,11 +253,11 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
           </div>
         </div>
 
-        <div className="bg-white shadow rounded-lg p-6 mb-6">
+        <div id="pdf-document" className="bg-white shadow rounded-lg p-6 mb-6">
           <div className="mb-6">
             <div className="flex justify-between items-start mb-6">
               <div>
-                <h1 className="text-2xl font-bold text-gray-900 mb-2">
+                <h1 className="text-2xl font-bold text-red-600 mb-2">
                   {document.type === 'PROFORMA' ? 'PROFORMA INVOICE' : document.type}
                 </h1>
                 <p className="text-sm text-gray-500">
@@ -251,9 +275,18 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
                 </p>
               </div>
               <div className="text-right">
-                <div className="w-32 h-16 bg-gray-200 rounded flex items-center justify-center text-xs text-gray-500">
-                  LOGO
-                </div>
+                {!logoError ? (
+                  <img
+                    src="/logo.png"
+                    alt="Logo"
+                    className="w-32 h-[100px] object-contain inline-block"
+                    onError={() => setLogoError(true)}
+                  />
+                ) : (
+                  <span className="text-sm font-semibold text-gray-700 inline-block">
+                    Heritage Park Hotel
+                  </span>
+                )}
               </div>
             </div>
             
@@ -406,7 +439,7 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
                       : document.paymentSummary.status === 'PARTIAL'
                       ? 'bg-yellow-100 text-yellow-800'
                       : document.paymentSummary.status === 'EXCESS'
-                      ? 'bg-blue-100 text-blue-800'
+                      ? 'bg-green-600 text-white'
                       : 'bg-red-100 text-red-800'
                   }`}
                 >
