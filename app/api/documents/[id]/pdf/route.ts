@@ -48,8 +48,9 @@ export async function GET(
     const safeLineItems = Array.isArray(lineItems) ? lineItems : []
     const pdfBuffer = await generateDocumentPDF(document, safeLineItems)
     const filename = `${document.documentNumber}.pdf`
+    const pdfBytes = pdfBuffer instanceof Uint8Array ? pdfBuffer : new Uint8Array(pdfBuffer)
 
-    return new NextResponse(pdfBuffer, {
+    return new NextResponse(pdfBytes, {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="${filename}"`,
