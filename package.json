@@ -15,7 +15,7 @@
     "generate:pdf": "node scripts/generate-pdf.js"
   },
   "dependencies": {
-    "@prisma/client": "^5.7.1",
+    "@prisma/client": "^7.2.0",
     "@react-pdf/renderer": "^3.4.4",
     "@supabase/supabase-js": "^2.89.0",
     "bcryptjs": "^2.4.3",
@@ -45,7 +45,7 @@
     "eslint": "^8.57.0",
     "eslint-config-next": "^14.2.15",
     "postcss": "^8.4.39",
-    "prisma": "^5.7.1",
+    "prisma": "^7.2.0",
     "tailwindcss": "^3.4.7",
     "tsx": "^4.7.2",
     "typescript": "^5.5.4"
