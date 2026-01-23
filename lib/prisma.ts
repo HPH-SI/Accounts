@@ -33,7 +33,7 @@ function createPrismaClient() {
       console.warn('[Prisma] Added pgbouncer=true to connection string. Please add this to your .env file for consistency.')
     }
   }
-  
+
   // Create PrismaClient with explicit datasource configuration
   // This ensures the corrected URL is used
   // IMPORTANT: If you see prepared statement errors, regenerate Prisma Client:

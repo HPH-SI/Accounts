@@ -10,6 +10,7 @@ interface Customer {
   name: string
   type: string
   address?: string
+  emails?: string
   phone?: string
   taxNumber?: string
   notes?: string
@@ -65,12 +66,20 @@ export default function CustomerDetailPage({ params }: { params: { id: string } 
       <div className="px-4 py-6 sm:px-0">
         <div className="mb-6 flex justify-between items-center">
           <h1 className="text-3xl font-bold text-gray-900">{customer.name}</h1>
-          <Link
-            href="/customers"
-            className="text-primary-600 hover:text-primary-800"
-          >
-            ← Back to Customers
-          </Link>
+          <div className="flex items-center space-x-4">
+            <Link
+              href={`/customers/${customer.id}/edit`}
+              className="text-primary-600 hover:text-primary-800"
+            >
+              Edit Customer
+            </Link>
+            <Link
+              href="/customers"
+              className="text-primary-600 hover:text-primary-800"
+            >
+              ← Back to Customers
+            </Link>
+          </div>
         </div>
 
         <div className="bg-white shadow rounded-lg p-6 mb-6">

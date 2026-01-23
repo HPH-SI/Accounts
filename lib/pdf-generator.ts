@@ -18,7 +18,7 @@ export async function generateDocumentPDF(
   document: Document & { customer: Customer; payments?: Payment[] },
   lineItems: LineItem[]
 ): Promise<Buffer> {
-  const doc = new jsPDF()
+  const doc = new jsPDF({ compress: true })
   const pageWidth = doc.internal.pageSize.getWidth()
   const margin = 20
   let yPos = margin
@@ -84,7 +84,9 @@ export async function generateDocumentPDF(
           logoX,
           logoY,
           logoWidth,
-          logoHeight
+          logoHeight,
+          undefined,
+          'MEDIUM'
         )
         logoAdded = true
         break

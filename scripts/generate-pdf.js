@@ -15,6 +15,7 @@ async function generatePDF() {
     path: outputPath,
     format: 'A4',
     printBackground: true,
+    scale: 0.9,
     margin: {
       top: '20mm',
       bottom: '20mm',
