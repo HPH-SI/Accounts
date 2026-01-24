@@ -51,17 +51,13 @@ export async function GET(
     // #region agent log
     fetch('http://127.0.0.1:7242/ingest/e9d4f6ee-6a66-497a-abd5-4a42a26f0961',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1',location:'app/api/documents/[id]/pdf/route.ts:GET:pdfBytes',message:'Constructing PDF response body',data:{isUint8Array:pdfBuffer instanceof Uint8Array,isBuffer:Buffer.isBuffer(pdfBuffer)},timestamp:Date.now()})}).catch(()=>{});
     // #endregion agent log
-    const pdfBytes = pdfBuffer instanceof Uint8Array ? pdfBuffer : new Uint8Array(pdfBuffer)
-    const arrayBuffer = pdfBytes.buffer.slice(
-      pdfBytes.byteOffset,
-      pdfBytes.byteOffset + pdfBytes.byteLength
-    )
+    const pdfBytes = new Uint8Array(pdfBuffer)
 
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/e9d4f6ee-6a66-497a-abd5-4a42a26f0961',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H2',location:'app/api/documents/[id]/pdf/route.ts:GET:response',message:'Returning PDF response',data:{arrayBufferBytes:arrayBuffer.byteLength},timestamp:Date.now()})}).catch(()=>{});
+    fetch('http://127.0.0.1:7242/ingest/e9d4f6ee-6a66-497a-abd5-4a42a26f0961',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H2',location:'app/api/documents/[id]/pdf/route.ts:GET:response',message:'Returning PDF response',data:{byteLength:pdfBytes.byteLength,isBuffer:Buffer.isBuffer(pdfBytes)},timestamp:Date.now()})}).catch(()=>{});
     // #endregion agent log
 
-    return new NextResponse(arrayBuffer, {
+    return new NextResponse(pdfBytes, {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="${filename}"`,
