@@ -28,7 +28,7 @@ function getFallbackAuth(): SmtpAuth {
   }
 }
 
-function getSenderAuthConfig(fromAddress?: string): SenderAuthConfig | null {
+function getSenderAuthConfig(fromAddress?: string): SenderAuthConfig | undefined {
   const normalizedFrom = (fromAddress || '').toLowerCase()
   const configs: SenderAuthConfig[] = [
     {
@@ -51,7 +51,7 @@ function getSenderAuthConfig(fromAddress?: string): SenderAuthConfig | null {
     },
   ]
 
-  return configs.find((config) => config.address === normalizedFrom) || null
+  return configs.find((config) => config.address === normalizedFrom)
 }
 
 function getAuthForSender(fromAddress?: string): AuthSelection {
@@ -60,7 +60,7 @@ function getAuthForSender(fromAddress?: string): AuthSelection {
   const senderConfig = getSenderAuthConfig(fromAddress)
 
   if (forceFallback) {
-    return { auth: fallbackAuth, source: 'fallback', senderConfig }
+    return { auth: fallbackAuth, source: 'fallback', senderConfig: senderConfig ?? undefined }
   }
 
   if (senderConfig) {
@@ -88,7 +88,7 @@ function getAuthForSender(fromAddress?: string): AuthSelection {
     }
   }
 
-  return { auth: fallbackAuth, source: 'fallback', senderConfig }
+  return { auth: fallbackAuth, source: 'fallback', senderConfig: senderConfig ?? undefined }
 }
 
 // Validate email configuration
