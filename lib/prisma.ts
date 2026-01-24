@@ -11,8 +11,18 @@ const globalForPrisma = globalThis as unknown as {
 // DATABASE_URL="...?pgbouncer=true" (or add &pgbouncer=true if other params exist)
 function createPrismaClient() {
   const databaseUrl = process.env.DATABASE_URL || ''
+  const isBuildPhase =
+    process.env.NEXT_PHASE === 'phase-production-build' ||
+    (process.env.NETLIFY === 'true' && process.env.NODE_ENV === 'production')
   
   if (!databaseUrl) {
+    if (isBuildPhase) {
+      return new Proxy({} as PrismaClient, {
+        get() {
+          throw new Error('DATABASE_URL environment variable is not set')
+        },
+      })
+    }
     throw new Error('DATABASE_URL environment variable is not set')
   }
   
