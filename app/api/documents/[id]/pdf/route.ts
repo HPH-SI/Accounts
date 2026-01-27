@@ -29,9 +29,9 @@ export async function GET(
       return NextResponse.json({ error: 'Document not found' }, { status: 404 })
     }
 
-    if (document.type !== 'INVOICE') {
+    if (!['INVOICE', 'PROFORMA', 'QUOTATION'].includes(document.type)) {
       return NextResponse.json(
-        { error: 'PDF download is only available for invoices' },
+        { error: 'PDF download is only available for quotations, proformas, or invoices' },
         { status: 400 }
       )
     }

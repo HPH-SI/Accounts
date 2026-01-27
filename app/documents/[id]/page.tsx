@@ -228,7 +228,7 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
                 Edit
               </button>
             )}
-            {document.type === 'INVOICE' && (
+            {['INVOICE', 'PROFORMA', 'QUOTATION'].includes(document.type) && (
               <button
                 onClick={handleDownloadPdf}
                 className="px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-800"
