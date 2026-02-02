@@ -38,8 +38,17 @@ export async function POST(
     }
 
     // Generate PDF
-    const lineItems = JSON.parse(document.lineItems)
-    const pdfBuffer = await generateDocumentPDF(document, lineItems)
+    let lineItems: unknown = []
+    try {
+      lineItems = JSON.parse(document.lineItems || '[]')
+    } catch {
+      return NextResponse.json(
+        { error: 'Invalid line items data for this document' },
+        { status: 400 }
+      )
+    }
+    const safeLineItems = Array.isArray(lineItems) ? lineItems : []
+    const pdfBuffer = await generateDocumentPDF(document, safeLineItems)
 
     // Send email
     const emailResult = await sendEmail({

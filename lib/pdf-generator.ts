@@ -23,11 +23,11 @@ export async function generateDocumentPDF(
   const margin = 20
   let yPos = margin
 
-  // Document Type on top left
+  // Document Type + Number on top left
   doc.setFontSize(18)
   doc.setFont('helvetica', 'bold')
   const docType = document.type === 'PROFORMA' ? 'PROFORMA INVOICE' : document.type
-  doc.text(docType, margin, yPos)
+  doc.text(`${docType} - ${document.documentNumber}`, margin, yPos)
   yPos += 8
 
   // Date below document type
@@ -45,6 +45,8 @@ export async function generateDocumentPDF(
         year: 'numeric' 
       })
   doc.text(`Date: ${docDate}`, margin, yPos)
+  yPos += 7
+  doc.text(`Document #: ${document.documentNumber}`, margin, yPos)
   yPos += 15
 
   // Logo on right (if available)

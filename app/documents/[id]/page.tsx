@@ -6,7 +6,6 @@ import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { SENDER_EMAIL_ADDRESSES, DEFAULT_SENDER_EMAIL } from '@/lib/email-config'
 import { canEditDocument } from '@/lib/permissions'
-import { downloadElementAsPdf } from '@/lib/download-pdf'
 
 interface Document {
   id: string
@@ -126,10 +125,21 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
 
   async function handleDownloadPdf() {
     try {
-      await downloadElementAsPdf(
-        'pdf-document',
-        document?.documentNumber || 'document'
-      )
+      const res = await fetch(`/api/documents/${params.id}/pdf`)
+      if (!res.ok) {
+        const errorPayload = await res.json().catch(() => null)
+        throw new Error(errorPayload?.error || 'Failed to download PDF')
+      }
+
+      const blob = await res.blob()
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${document?.documentNumber || 'document'}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
     } catch (error: any) {
       console.error('PDF download failed:', error)
       alert(error?.message || 'An error occurred')
@@ -178,7 +188,15 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
     )
   }
 
-  const lineItems = JSON.parse(document.lineItems)
+  let lineItems: any[] = []
+  try {
+    lineItems = JSON.parse(document.lineItems || '[]')
+    if (!Array.isArray(lineItems)) {
+      lineItems = []
+    }
+  } catch {
+    lineItems = []
+  }
   const canConvert = document.type === 'QUOTATION' || document.type === 'PROFORMA'
 
   return (
@@ -258,7 +276,8 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
             <div className="flex justify-between items-start mb-6">
               <div>
                 <h1 className="text-2xl font-bold text-red-600 mb-2">
-                  {document.type === 'PROFORMA' ? 'PROFORMA INVOICE' : document.type}
+                  {document.type === 'PROFORMA' ? 'PROFORMA INVOICE' : document.type} -{' '}
+                  {document.documentNumber}
                 </h1>
                 <p className="text-sm text-gray-500">
                   Date: {document.issueDate 
@@ -558,6 +577,28 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
                     rows={4}
                     className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
                   />
+                  <div className="mt-4 border-t border-gray-200 pt-3 text-xs text-gray-600">
+                    <div className="flex items-start gap-3">
+                      <img
+                        src="/logo.png"
+                        alt="Heritage Park Hotel"
+                        className="h-8 w-auto object-contain"
+                      />
+                      <div className="space-y-1">
+                        <p className="font-semibold text-gray-700">
+                          Heritage Park Hotel
+                        </p>
+                        <p>
+                          P.O. Box 1598, Mendana Avenue, Honiara, Solomon
+                          Islands
+                        </p>
+                        <p>
+                          Phone: +677 45500 · WhatsApp: 7585008
+                        </p>
+                        <p>Website: www.heritageparkhotel.com.sb</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
               <div className="flex justify-end space-x-3 mt-6">
