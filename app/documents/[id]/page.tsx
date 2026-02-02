@@ -65,6 +65,9 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
       const res = await fetch(`/api/documents/${params.id}`)
       const data = await res.json()
       setDoc(data)
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/e9d4f6ee-6a66-497a-abd5-4a42a26f0961',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A',location:'app/documents/[id]/page.tsx:fetchDocument',message:'Fetched document detail',data:{hasDoc:!!data,hasDocumentNumber:!!data?.documentNumber},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
     } catch (error) {
       console.error('Failed to fetch document:', error)
     } finally {
@@ -125,6 +128,9 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
 
   async function handleDownloadPdf() {
     try {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/e9d4f6ee-6a66-497a-abd5-4a42a26f0961',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B',location:'app/documents/[id]/page.tsx:handleDownloadPdf:start',message:'PDF download triggered',data:{hasDoc:!!doc,hasDocumentNumber:!!doc?.documentNumber},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       const res = await fetch(`/api/documents/${params.id}/pdf`)
       if (!res.ok) {
         const errorPayload = await res.json().catch(() => null)
@@ -133,6 +139,9 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
 
       const blob = await res.blob()
       const url = window.URL.createObjectURL(blob)
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/e9d4f6ee-6a66-497a-abd5-4a42a26f0961',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'C',location:'app/documents/[id]/page.tsx:handleDownloadPdf:blob',message:'PDF response ready',data:{status:res.status,hasBlob:!!blob,hasUrl:!!url},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       const link = document.createElement('a')
       link.href = url
       link.download = `${doc?.documentNumber || 'document'}.pdf`
@@ -140,6 +149,9 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
       link.click()
       link.remove()
       window.URL.revokeObjectURL(url)
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/e9d4f6ee-6a66-497a-abd5-4a42a26f0961',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'D',location:'app/documents/[id]/page.tsx:handleDownloadPdf:complete',message:'PDF download link clicked',data:{downloadName:`${doc?.documentNumber || 'document'}.pdf`},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
     } catch (error: any) {
       console.error('PDF download failed:', error)
       alert(error?.message || 'An error occurred')
