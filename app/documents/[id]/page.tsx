@@ -42,7 +42,7 @@ interface Document {
 export default function DocumentDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const { data: session } = useSession()
-  const [document, setDocument] = useState<Document | null>(null)
+  const [doc, setDoc] = useState<Document | null>(null)
   const [loading, setLoading] = useState(true)
   const [emailModalOpen, setEmailModalOpen] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
@@ -64,7 +64,7 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
     try {
       const res = await fetch(`/api/documents/${params.id}`)
       const data = await res.json()
-      setDocument(data)
+      setDoc(data)
     } catch (error) {
       console.error('Failed to fetch document:', error)
     } finally {
@@ -135,7 +135,7 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = `${document?.documentNumber || 'document'}.pdf`
+      link.download = `${doc?.documentNumber || 'document'}.pdf`
       document.body.appendChild(link)
       link.click()
       link.remove()
@@ -180,7 +180,7 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
     )
   }
 
-  if (!document) {
+  if (!doc) {
     return (
       <ProtectedRoute>
         <div className="text-center py-12">Document not found</div>
@@ -190,14 +190,14 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
 
   let lineItems: any[] = []
   try {
-    lineItems = JSON.parse(document.lineItems || '[]')
+    lineItems = JSON.parse(doc.lineItems || '[]')
     if (!Array.isArray(lineItems)) {
       lineItems = []
     }
   } catch {
     lineItems = []
   }
-  const canConvert = document.type === 'QUOTATION' || document.type === 'PROFORMA'
+  const canConvert = doc.type === 'QUOTATION' || doc.type === 'PROFORMA'
 
   return (
     <ProtectedRoute>
@@ -205,14 +205,14 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
         <div className="mb-6 flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">
-              {document.documentNumber}
+              {doc.documentNumber}
             </h1>
-            <p className="text-sm text-gray-500">{document.type}</p>
+            <p className="text-sm text-gray-500">{doc.type}</p>
           </div>
           <div className="space-x-2">
             {canConvert && (
               <>
-                {document.type === 'QUOTATION' && (
+                {doc.type === 'QUOTATION' && (
                   <>
                     <button
                       onClick={() => handleConvert('PROFORMA')}
@@ -228,7 +228,7 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
                     </button>
                   </>
                 )}
-                {document.type === 'PROFORMA' && (
+                {doc.type === 'PROFORMA' && (
                   <button
                     onClick={() => handleConvert('INVOICE')}
                     className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
@@ -246,7 +246,7 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
                 Edit
               </button>
             )}
-            {['INVOICE', 'PROFORMA', 'QUOTATION'].includes(document.type) && (
+            {['INVOICE', 'PROFORMA', 'QUOTATION'].includes(doc.type) && (
               <button
                 onClick={handleDownloadPdf}
                 className="px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-800"
@@ -276,12 +276,12 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
             <div className="flex justify-between items-start mb-6">
               <div>
                 <h1 className="text-2xl font-bold text-red-600 mb-2">
-                  {document.type === 'PROFORMA' ? 'PROFORMA INVOICE' : document.type} -{' '}
-                  {document.documentNumber}
+                  {doc.type === 'PROFORMA' ? 'PROFORMA INVOICE' : doc.type} -{' '}
+                  {doc.documentNumber}
                 </h1>
                 <p className="text-sm text-gray-500">
-                  Date: {document.issueDate 
-                    ? new Date(document.issueDate).toLocaleDateString('en-GB', { 
+                  Date: {doc.issueDate 
+                    ? new Date(doc.issueDate).toLocaleDateString('en-GB', { 
                         day: '2-digit', 
                         month: 'short', 
                         year: 'numeric' 
@@ -321,27 +321,27 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
               </div>
               <div>
                 <h3 className="text-sm font-bold text-gray-700 mb-2">To:</h3>
-                <p className="text-sm text-gray-900">{document.customer.name}</p>
-                {document.customer.address && (
-                  <p className="text-sm text-gray-600">{document.customer.address}</p>
+                <p className="text-sm text-gray-900">{doc.customer.name}</p>
+                {doc.customer.address && (
+                  <p className="text-sm text-gray-600">{doc.customer.address}</p>
                 )}
-                {document.customer.phone ? (
-                  <p className="text-sm text-gray-600">Ph: {document.customer.phone}</p>
+                {doc.customer.phone ? (
+                  <p className="text-sm text-gray-600">Ph: {doc.customer.phone}</p>
                 ) : (
                   <p className="text-sm text-gray-400">Ph:</p>
                 )}
                 {(() => {
                   try {
-                    const emails = JSON.parse(document.customer.emails || '[]')
-                    const emailStr = Array.isArray(emails) ? emails.join(', ') : document.customer.emails
+                    const emails = JSON.parse(doc.customer.emails || '[]')
+                    const emailStr = Array.isArray(emails) ? emails.join(', ') : doc.customer.emails
                     return emailStr ? (
                       <p className="text-sm text-gray-600">Email: {emailStr}</p>
                     ) : (
                       <p className="text-sm text-gray-400">Email:</p>
                     )
                   } catch {
-                    return document.customer.emails ? (
-                      <p className="text-sm text-gray-600">Email: {document.customer.emails}</p>
+                    return doc.customer.emails ? (
+                      <p className="text-sm text-gray-600">Email: {doc.customer.emails}</p>
                     ) : (
                       <p className="text-sm text-gray-400">Email:</p>
                     )
@@ -392,98 +392,98 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
             <div className="w-64 space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-700">Subtotal:</span>
-                <span className="font-medium">${document.subtotal.toFixed(2)}</span>
+                <span className="font-medium">${doc.subtotal.toFixed(2)}</span>
               </div>
-              {document.taxAmount > 0 && (
+              {doc.taxAmount > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-700">Tax:</span>
-                  <span className="font-medium">${document.taxAmount.toFixed(2)}</span>
+                  <span className="font-medium">${doc.taxAmount.toFixed(2)}</span>
                 </div>
               )}
               <div className="flex justify-between text-lg font-bold border-t pt-2">
                 <span>Total:</span>
-                <span>${document.totalAmount.toFixed(2)}</span>
+                <span>${doc.totalAmount.toFixed(2)}</span>
               </div>
             </div>
           </div>
 
-          {document.type === 'INVOICE' && document.paymentSummary && (
+          {doc.type === 'INVOICE' && doc.paymentSummary && (
             <div className="border-t pt-6">
               <h3 className="text-lg font-medium mb-4">Payment Summary</h3>
               <div className="grid grid-cols-2 gap-4 mb-4">
                 <div>
                   <p className="text-sm text-gray-500">Total Amount</p>
                   <p className="text-lg font-semibold">
-                    ${document.paymentSummary.totalAmount.toFixed(2)}
+                    ${doc.paymentSummary.totalAmount.toFixed(2)}
                   </p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Total Paid</p>
                   <p className="text-lg font-semibold text-green-600">
-                    ${document.paymentSummary.totalPaid.toFixed(2)}
+                    ${doc.paymentSummary.totalPaid.toFixed(2)}
                   </p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Outstanding</p>
                   <p
                     className={`text-lg font-semibold ${
-                      document.paymentSummary.outstanding > 0
+                      doc.paymentSummary.outstanding > 0
                         ? 'text-red-600'
                         : 'text-green-600'
                     }`}
                   >
-                    ${document.paymentSummary.outstanding.toFixed(2)}
+                    ${doc.paymentSummary.outstanding.toFixed(2)}
                   </p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Variance</p>
                   <p
                     className={`text-lg font-semibold ${
-                      document.paymentSummary.variance >= 0
+                      doc.paymentSummary.variance >= 0
                         ? 'text-green-600'
                         : 'text-red-600'
                     }`}
                   >
-                    ${Math.abs(document.paymentSummary.variance).toFixed(2)}
-                    {document.paymentSummary.variance > 0 && ' (Excess)'}
-                    {document.paymentSummary.variance < 0 && ' (Deficit)'}
+                    ${Math.abs(doc.paymentSummary.variance).toFixed(2)}
+                    {doc.paymentSummary.variance > 0 && ' (Excess)'}
+                    {doc.paymentSummary.variance < 0 && ' (Deficit)'}
                   </p>
                 </div>
               </div>
               <div>
                 <span
                   className={`px-3 py-1 rounded-full text-sm font-medium ${
-                    document.paymentSummary.status === 'PAID'
+                    doc.paymentSummary.status === 'PAID'
                       ? 'bg-green-100 text-green-800'
-                      : document.paymentSummary.status === 'PARTIAL'
+                      : doc.paymentSummary.status === 'PARTIAL'
                       ? 'bg-yellow-100 text-yellow-800'
-                      : document.paymentSummary.status === 'EXCESS'
+                      : doc.paymentSummary.status === 'EXCESS'
                       ? 'bg-green-600 text-white'
                       : 'bg-red-100 text-red-800'
                   }`}
                 >
-                  {document.paymentSummary.status}
+                  {doc.paymentSummary.status}
                 </span>
               </div>
             </div>
           )}
 
-          {document.terms && (
+          {doc.terms && (
             <div className="border-t pt-6">
               <h3 className="text-sm font-medium text-gray-700 mb-2">
                 Terms & Conditions
               </h3>
               <p className="text-sm text-gray-600 whitespace-pre-line">
-                {document.terms}
+                {doc.terms}
               </p>
             </div>
           )}
 
-          {document.notes && (
+          {doc.notes && (
             <div className="border-t pt-6">
               <h3 className="text-sm font-medium text-gray-700 mb-2">Notes</h3>
               <p className="text-sm text-gray-600 whitespace-pre-line">
-                {document.notes}
+                {doc.notes}
               </p>
             </div>
           )}
@@ -558,7 +558,7 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
                   </label>
                   <input
                     type="text"
-                    value={emailData.subject || `${document.type} ${document.documentNumber}`}
+                    value={emailData.subject || `${doc.type} ${doc.documentNumber}`}
                     onChange={(e) =>
                       setEmailData({ ...emailData, subject: e.target.value })
                     }
