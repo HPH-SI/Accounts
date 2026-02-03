@@ -50,6 +50,29 @@ export async function POST(
     const safeLineItems = Array.isArray(lineItems) ? lineItems : []
     const pdfBuffer = await generateDocumentPDF(document, safeLineItems)
 
+    const escapeHtml = (value: string) =>
+      value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+
+    const normalizedBody =
+      emailBody && emailBody.trim().length > 0
+        ? emailBody
+        : `Please find attached ${document.type} ${document.documentNumber}.`
+
+    const bodyHtml = `<div style="font-family: Arial, sans-serif; font-size: 14px; color: #111827; line-height: 1.5;">
+${escapeHtml(normalizedBody).replace(/\n/g, '<br />')}
+<div style="margin-top: 18px; padding-top: 12px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 12px;">
+  <div style="font-weight: 600; color: #374151;">Heritage Park Hotel</div>
+  <div>P.O. Box 1598, Mendana Avenue, Honiara, Solomon Islands</div>
+  <div>Phone: +677 45500 · WhatsApp: 7585008</div>
+  <div>Website: www.heritageparkhotel.com.sb</div>
+</div>
+</div>`
+
     // Send email
     const emailResult = await sendEmail({
       from,
@@ -57,7 +80,7 @@ export async function POST(
       cc: cc ? (Array.isArray(cc) ? cc : [cc]) : undefined,
       bcc: bcc ? (Array.isArray(bcc) ? bcc : [bcc]) : undefined,
       subject: subject || `${document.type} ${document.documentNumber}`,
-      body: emailBody || `Please find attached ${document.type} ${document.documentNumber}.`,
+      body: bodyHtml,
       attachments: [
         {
           filename: `${document.documentNumber}.pdf`,
@@ -76,7 +99,7 @@ export async function POST(
         cc: cc ? (Array.isArray(cc) ? cc : [cc]) : undefined,
         bcc: bcc ? (Array.isArray(bcc) ? bcc : [bcc]) : undefined,
         subject: subject || `${document.type} ${document.documentNumber}`,
-        body: emailBody || `Please find attached ${document.type} ${document.documentNumber}.`,
+        body: bodyHtml,
       },
       emailResult.success ? 'SENT' : 'FAILED',
       emailResult.error

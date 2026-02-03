@@ -26,8 +26,10 @@ export async function generateDocumentPDF(
   // Document Type + Number on top left
   doc.setFontSize(18)
   doc.setFont('helvetica', 'bold')
+  doc.setTextColor(220, 38, 38)
   const docType = document.type === 'PROFORMA' ? 'PROFORMA INVOICE' : document.type
   doc.text(`${docType} - ${document.documentNumber}`, margin, yPos)
+  doc.setTextColor(0, 0, 0)
   yPos += 8
 
   // Date below document type
@@ -45,15 +47,14 @@ export async function generateDocumentPDF(
         year: 'numeric' 
       })
   doc.text(`Date: ${docDate}`, margin, yPos)
-  yPos += 7
-  doc.text(`Document #: ${document.documentNumber}`, margin, yPos)
   yPos += 15
 
   // Logo on right (if available)
-  const logoWidth = 70 // Increased width for better visibility
+  const logoWidth = 48 // Keep clear of the To column
   const logoX = pageWidth - margin - logoWidth
   const logoY = margin
   let logoAdded = false
+  let logoHeight = 0
   
   // Try to load logo from public folder
   const logoExtensions = ['png', 'jpg', 'jpeg', 'gif']
@@ -66,7 +67,7 @@ export async function generateDocumentPDF(
         const logoMimeType = ext === 'png' ? 'PNG' : ext === 'jpg' || ext === 'jpeg' ? 'JPEG' : 'GIF'
         
         // Get image dimensions to maintain aspect ratio
-        let logoHeight = logoWidth * 0.4 // Default aspect ratio
+        logoHeight = logoWidth * 0.4 // Default aspect ratio
         try {
           const dimensions = sizeOf(logoPath)
           if (dimensions.width && dimensions.height) {
@@ -106,53 +107,62 @@ export async function generateDocumentPDF(
     doc.setTextColor(150, 150, 150)
     doc.text('LOGO', logoX, logoY + 10)
     doc.setTextColor(0, 0, 0)
+    logoHeight = 14
   }
 
-  // From section (Heritage Park Hotel details)
-  yPos = margin + 25
+  // From/To sections (two columns)
+  const columnGap = 10
+  const columnWidth = (pageWidth - 2 * margin - columnGap) / 2
+  const leftX = margin
+  const rightX = margin + columnWidth + columnGap
+  const lineHeight = 6
+
+  const columnsTop = Math.max(margin + 25, logoY + logoHeight + 10)
+  let leftY = columnsTop
+  let rightY = columnsTop
+
   doc.setFontSize(11)
   doc.setFont('helvetica', 'bold')
-  doc.text('From:', margin, yPos)
-  yPos += 7
+  doc.text('From:', leftX, leftY)
+  leftY += 7
   doc.setFont('helvetica', 'normal')
-  doc.text('Heritage Park Hotel,', margin, yPos)
-  yPos += 6
-  doc.text('P.O Box 1598,', margin, yPos)
-  yPos += 6
-  doc.text('Mendana Avenue,', margin, yPos)
-  yPos += 6
-  doc.text('Honiara, Solomon Islands', margin, yPos)
-  yPos += 8
-  doc.text('Ph: +677 45500', margin, yPos)
-  yPos += 6
-  doc.text('Email: reservations@heritageparkhotel.com.sb', margin, yPos)
-  yPos += 15
+  const fromLines = [
+    'Heritage Park Hotel,',
+    'P.O Box 1598,',
+    'Mendana Avenue,',
+    'Honiara, Solomon Islands',
+    'Ph: +677 45500',
+    'Email: reservations@heritageparkhotel.com.sb',
+  ]
+  fromLines.forEach((line) => {
+    doc.text(line, leftX, leftY)
+    leftY += lineHeight
+  })
 
-  // To section (Customer details)
   doc.setFont('helvetica', 'bold')
-  doc.text('To:', margin, yPos)
-  yPos += 7
+  doc.text('To:', rightX, rightY)
+  rightY += 7
   doc.setFont('helvetica', 'normal')
-  doc.text(document.customer.name, margin, yPos)
-  yPos += 6
+  doc.text(document.customer.name, rightX, rightY)
+  rightY += lineHeight
+
   if (document.customer.address) {
-    const addressLines = doc.splitTextToSize(document.customer.address, pageWidth - 2 * margin - 60)
+    const addressLines = doc.splitTextToSize(document.customer.address, columnWidth)
     addressLines.forEach((line: string) => {
-      doc.text(line, margin, yPos)
-      yPos += 6
+      doc.text(line, rightX, rightY)
+      rightY += lineHeight
     })
   } else {
-    yPos += 6 // Space for address if not provided
+    rightY += lineHeight
   }
+
   if (document.customer.phone) {
-    doc.text(`Ph: ${document.customer.phone}`, margin, yPos)
-    yPos += 6
+    doc.text(`Ph: ${document.customer.phone}`, rightX, rightY)
   } else {
-    doc.text('Ph:', margin, yPos)
-    yPos += 6
+    doc.text('Ph:', rightX, rightY)
   }
-  
-  // Get customer emails
+  rightY += lineHeight
+
   let customerEmails = ''
   try {
     const emails = JSON.parse(document.customer.emails || '[]')
@@ -160,13 +170,15 @@ export async function generateDocumentPDF(
   } catch {
     customerEmails = document.customer.emails || ''
   }
-  
-  if (customerEmails) {
-    doc.text(`Email: ${customerEmails}`, margin, yPos)
-  } else {
-    doc.text('Email:', margin, yPos)
-  }
-  yPos += 15
+
+  const emailLine = customerEmails ? `Email: ${customerEmails}` : 'Email:'
+  const emailLines = doc.splitTextToSize(emailLine, columnWidth)
+  emailLines.forEach((line: string) => {
+    doc.text(line, rightX, rightY)
+    rightY += lineHeight
+  })
+
+  yPos = Math.max(leftY, rightY) + 10
 
   // Table Header
   doc.setFontSize(10)
