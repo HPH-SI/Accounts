@@ -56,13 +56,16 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
     body: '',
   })
 
+  const documentId = params?.id ?? ''
+
   useEffect(() => {
-    fetchDocument()
-  }, [params.id])
+    if (documentId) fetchDocument()
+  }, [documentId])
 
   async function fetchDocument() {
+    if (!documentId) return
     try {
-      const res = await fetch(`/api/documents/${params.id}`)
+      const res = await fetch(`/api/documents/${documentId}`)
       const data = await res.json()
       setDoc(data)
     } catch (error) {
@@ -74,7 +77,7 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
 
   async function handleConvert(targetType: string) {
     try {
-      const res = await fetch(`/api/documents/${params.id}/convert`, {
+      const res = await fetch(`/api/documents/${documentId}/convert`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ targetType }),
@@ -98,7 +101,7 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
       const cc = emailData.cc ? emailData.cc.split(',').map((e) => e.trim()).filter(Boolean) : undefined
       const bcc = emailData.bcc ? emailData.bcc.split(',').map((e) => e.trim()).filter(Boolean) : undefined
 
-      const res = await fetch(`/api/documents/${params.id}/email`, {
+      const res = await fetch(`/api/documents/${documentId}/email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -125,7 +128,7 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
 
   async function handleDownloadPdf() {
     try {
-      const res = await fetch(`/api/documents/${params.id}/pdf`)
+      const res = await fetch(`/api/documents/${documentId}/pdf`)
       if (!res.ok) {
         const errorPayload = await res.json().catch(() => null)
         throw new Error(errorPayload?.error || 'Failed to download PDF')
@@ -153,7 +156,7 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
     }
 
     try {
-      const res = await fetch(`/api/documents/${params.id}`, {
+      const res = await fetch(`/api/documents/${documentId}`, {
         method: 'DELETE',
       })
 
@@ -171,6 +174,14 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
 
   const canEdit = session?.user?.role && canEditDocument(session.user.role as any)
   const canDelete = session?.user?.role === 'ADMIN'
+
+  if (!documentId) {
+    return (
+      <ProtectedRoute>
+        <div className="text-center py-12">Invalid document</div>
+      </ProtectedRoute>
+    )
+  }
 
   if (loading) {
     return (
@@ -240,7 +251,7 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
             )}
             {canEdit && (
               <button
-                onClick={() => router.push(`/documents/${params.id}/edit`)}
+                onClick={() => router.push(`/documents/${documentId}/edit`)}
                 className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
               >
                 Edit

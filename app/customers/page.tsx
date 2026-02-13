@@ -2,6 +2,7 @@
 
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { downloadElementAsPdf } from '@/lib/download-pdf'
 
@@ -15,6 +16,7 @@ interface Customer {
 }
 
 export default function CustomersPage() {
+  const router = useRouter()
   const [customers, setCustomers] = useState<Customer[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -26,14 +28,25 @@ export default function CustomersPage() {
   async function fetchCustomers() {
     try {
       setLoading(true)
-        const url = search
-          ? `/api/customers?search=${encodeURIComponent(search)}`
-          : '/api/customers'
-        const res = await fetch(url)
-        const data = await res.json()
-        setCustomers(data)
+      const url = search
+        ? `/api/customers?search=${encodeURIComponent(search)}`
+        : '/api/customers'
+      const res = await fetch(url)
+      const data = await res.json()
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          router.push('/login')
+          return
+        }
+        setCustomers([])
+        return
+      }
+
+      setCustomers(Array.isArray(data) ? data : [])
     } catch (error) {
       console.error('Failed to fetch customers:', error)
+      setCustomers([])
     } finally {
       setLoading(false)
     }
