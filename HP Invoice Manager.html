@@ -131,6 +131,26 @@ async function downloadPDF(docRef, docNumber, docType){
   pdf.save(`${fname}.pdf`);
 }
 
+/* ── PDF AS BASE64 (for email attachment — lower quality to reduce file size) ── */
+async function generatePdfBase64(docRef, docNumber, docType){
+  const el = docRef.current;
+  if(!el) return null;
+  const {jsPDF} = window.jspdf;
+  const canvas = await html2canvas(el, {
+    scale:1.5, useCORS:true, backgroundColor:"#ffffff",
+    logging:false, imageTimeout:0
+  });
+  const imgData = canvas.toDataURL("image/jpeg", 0.65);
+  const pdf = new jsPDF({orientation:"portrait", unit:"mm", format:"a4"});
+  const pw = pdf.internal.pageSize.getWidth();
+  const ph = pdf.internal.pageSize.getHeight();
+  const ratio = canvas.width / canvas.height;
+  let imgW = pw - 20, imgH = imgW / ratio;
+  if(imgH > ph - 20){ imgH = ph - 20; imgW = imgH * ratio; }
+  pdf.addImage(imgData,"JPEG",(pw-imgW)/2,10,imgW,imgH,undefined,"FAST");
+  return btoa(pdf.output());
+}
+
 /* ── EMAIL (Resend via same-origin function — direct api.resend.com calls fail: CORS / “Failed to fetch”) ── */
 function getEmailApiUrl(){
   if(typeof window==="undefined") return "";
@@ -140,7 +160,7 @@ function getEmailApiUrl(){
   }
   return "";
 }
-async function sendViaResend({to, cc, bcc, fromEmail, docType, docNumber, toName, company, subtotal, currency, htmlBody}){
+async function sendViaResend({to, cc, bcc, fromEmail, docType, docNumber, toName, company, subtotal, currency, htmlBody, pdfBase64, pdfFilename}){
   const subject = `${docType}${docNumber?" #"+docNumber:""} from Heritage Park Hotel`;
   const body = {
     from: fromEmail||DEFAULT_FROM,
@@ -148,7 +168,8 @@ async function sendViaResend({to, cc, bcc, fromEmail, docType, docNumber, toName
     ...(cc&&cc.trim()?{cc:[cc]}:{}),
     ...(bcc&&bcc.trim()?{bcc:[bcc]}:{}),
     subject,
-    html: htmlBody||`<p>Dear ${toName||"Client"},</p><p>Please find attached your ${docType}${docNumber?" #"+docNumber:""} from Heritage Park Hotel.</p><p>Total: ${currency} ${fmt(subtotal)}</p><br/><p>Best regards,<br/>Heritage Park Hotel<br/>Honiara, Solomon Islands</p>`
+    html: htmlBody||`<p>Dear ${toName||"Client"},</p><p>Please find attached your ${docType}${docNumber?" #"+docNumber:""} from Heritage Park Hotel.</p><p>Total: ${currency} ${fmt(subtotal)}</p><br/><p>Best regards,<br/>Heritage Park Hotel<br/>Honiara, Solomon Islands</p>`,
+    ...(pdfBase64 ? { attachments: [{ filename: pdfFilename || "document.pdf", content: pdfBase64 }] } : {})
   };
   const openMailto = () => {
     const plain = `Dear ${toName||"Client"},\n\nPlease find attached your ${docType}${docNumber?" #"+docNumber:""} from Heritage Park Hotel.\n\nTotal: ${currency} ${fmt(subtotal)}\n\nBest regards,\nHeritage Park Hotel\nHoniara, Solomon Islands`;
@@ -178,7 +199,18 @@ async function sendViaResend({to, cc, bcc, fromEmail, docType, docNumber, toName
       openMailto();
       return { id: "mailto" };
     }
-    throw new Error((data && data.message) || `Email failed (${resp.status})`);
+    const errMsg = (data && data.message) || "";
+    if (
+      resp.status === 500 &&
+      ((data && data.code === "missing_resend_key") ||
+        errMsg.indexOf("RESEND_API_KEY") !== -1 ||
+        errMsg.indexOf("not configured") !== -1 ||
+        errMsg.indexOf("Functions (not Build only)") !== -1)
+    ) {
+      openMailto();
+      return { id: "mailto" };
+    }
+    throw new Error(errMsg || `Email failed (${resp.status})`);
   }
   return data;
 }
@@ -494,9 +526,13 @@ function DocEditor({onSave, initialDoc}){
     if(!emailTo.trim()){setEmailError("Please enter a recipient email");return;}
     setEmailStatus("sending"); setEmailError("");
     try{
+      const safeName = (docNumber||docType||"document").replace(/[^a-zA-Z0-9_-]/g,"_");
+      const pdfBase64 = await generatePdfBase64(printDocRef, docNumber, docType).catch(()=>null);
       const result = await sendViaResend({
         to:emailTo,cc:emailCC,bcc:emailBCC,fromEmail,
-        docType,docNumber,toName,company,subtotal,currency
+        docType,docNumber,toName,company,subtotal,currency,
+        pdfBase64,
+        pdfFilename: `${safeName}.pdf`
       });
       if(result && result.id==="mailto"){
         setEmailStatus("mailto");
