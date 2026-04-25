@@ -150,10 +150,13 @@ async function sendViaResend({to, cc, bcc, fromEmail, docType, docNumber, toName
     subject,
     html: htmlBody||`<p>Dear ${toName||"Client"},</p><p>Please find attached your ${docType}${docNumber?" #"+docNumber:""} from Heritage Park Hotel.</p><p>Total: ${currency} ${fmt(subtotal)}</p><br/><p>Best regards,<br/>Heritage Park Hotel<br/>Honiara, Solomon Islands</p>`
   };
-  const url = getEmailApiUrl();
-  if(!url) {
+  const openMailto = () => {
     const plain = `Dear ${toName||"Client"},\n\nPlease find attached your ${docType}${docNumber?" #"+docNumber:""} from Heritage Park Hotel.\n\nTotal: ${currency} ${fmt(subtotal)}\n\nBest regards,\nHeritage Park Hotel\nHoniara, Solomon Islands`;
     window.location.href = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(plain)}`;
+  };
+  const url = getEmailApiUrl();
+  if(!url) {
+    openMailto();
     return { id: "mailto" };
   }
   let resp;
@@ -161,8 +164,9 @@ async function sendViaResend({to, cc, bcc, fromEmail, docType, docNumber, toName
     resp = await fetch(url, { method:"POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   } catch (err) {
     const m = err && err.message || "";
-    if (m === "Failed to fetch" || m.indexOf("NetworkError") !== -1) {
-      throw new Error("Cannot reach the email service. Use Netlify with netlify/functions/send-email and set RESEND_API_KEY, or set window.__HPH_EMAIL_SEND_URL__ to your email API. You can also use Download PDF and attach the file in your mail client.");
+    if (m === "Failed to fetch" || m.indexOf("NetworkError") !== -1 || m.indexOf("fetch") !== -1) {
+      openMailto();
+      return { id: "mailto" };
     }
     throw err;
   }
@@ -171,7 +175,8 @@ async function sendViaResend({to, cc, bcc, fromEmail, docType, docNumber, toName
   try { data = text ? JSON.parse(text) : {}; } catch { data = { message: text || "Invalid response" }; }
   if (!resp.ok) {
     if (resp.status === 404) {
-      throw new Error("Email API not found. Deploy to Netlify (see README) or set window.__HPH_EMAIL_SEND_URL__ to a working email endpoint.");
+      openMailto();
+      return { id: "mailto" };
     }
     throw new Error((data && data.message) || `Email failed (${resp.status})`);
   }
@@ -455,7 +460,7 @@ function DocEditor({onSave, initialDoc}){
   const [emailBCC,setEmailBCC]=useState("");
   const [fromEmail,setFromEmail]=useState(DEFAULT_FROM);
   const [showCCBCC,setShowCCBCC]=useState(false);
-  const [emailStatus,setEmailStatus]=useState("idle"); // idle|sending|success|error
+  const [emailStatus,setEmailStatus]=useState("idle"); // idle|sending|success|mailto|error
   const [emailError,setEmailError]=useState("");
   const [pdfLoading,setPdfLoading]=useState(false);
 
@@ -489,12 +494,17 @@ function DocEditor({onSave, initialDoc}){
     if(!emailTo.trim()){setEmailError("Please enter a recipient email");return;}
     setEmailStatus("sending"); setEmailError("");
     try{
-      await sendViaResend({
+      const result = await sendViaResend({
         to:emailTo,cc:emailCC,bcc:emailBCC,fromEmail,
         docType,docNumber,toName,company,subtotal,currency
       });
-      setEmailStatus("success");
-      setTimeout(()=>setEmailStatus("idle"),5000);
+      if(result && result.id==="mailto"){
+        setEmailStatus("mailto");
+        setTimeout(()=>setEmailStatus("idle"),6000);
+      } else {
+        setEmailStatus("success");
+        setTimeout(()=>setEmailStatus("idle"),5000);
+      }
     }catch(e){
       setEmailStatus("error");
       setEmailError(e.message||"Failed to send");
@@ -600,13 +610,14 @@ function DocEditor({onSave, initialDoc}){
             </div>
           )}
           {emailError&&<div style={{fontSize:11,color:"var(--danger)",marginBottom:6,padding:"5px 8px",background:"#fef2f2",borderRadius:5}}>{emailError}</div>}
+          {emailStatus==="mailto"&&<div style={{fontSize:11,color:"#0369a1",marginBottom:6,padding:"5px 8px",background:"#e0f2fe",borderRadius:5}}>Mail client opened — check your email app to send.</div>}
           <button onClick={handleEmail} disabled={emailStatus==="sending"}
             style={{
               width:"100%",padding:"8px",borderRadius:7,border:"none",
-              background:emailStatus==="success"?"var(--success)":emailStatus==="error"?"var(--danger)":emailStatus==="sending"?"var(--border)":"var(--accent)",
+              background:emailStatus==="success"?"var(--success)":emailStatus==="mailto"?"#0284c7":emailStatus==="error"?"var(--danger)":emailStatus==="sending"?"var(--border)":"var(--accent)",
               color:"#fff",fontWeight:500,fontSize:13,cursor:emailStatus==="sending"?"default":"pointer",transition:"background .3s"
             }}>
-            {emailStatus==="success"?"✓ Email Sent!":emailStatus==="sending"?"Sending…":emailStatus==="error"?"Retry":"Send"}
+            {emailStatus==="success"?"✓ Email Sent!":emailStatus==="mailto"?"✓ Mail Client Opened":emailStatus==="sending"?"Sending…":emailStatus==="error"?"Retry":"Send"}
           </button>
         </EditorCard>
 
