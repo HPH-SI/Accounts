@@ -221,7 +221,6 @@ function Sidebar({activeTab, setActiveTab, docs}){
     {id:"new",label:"New Document",icon:"✦"},
     {id:"list",label:"Documents",icon:"≡"},
     {id:"analytics",label:"Analytics",icon:"◈"},
-    {id:"settings",label:"Settings",icon:"⚙"},
   ];
   return(
     <aside style={{width:214,background:"var(--accent)",minHeight:"100vh",display:"flex",flexDirection:"column",flexShrink:0,position:"sticky",top:0,height:"100vh",overflowY:"auto"}}>
@@ -839,41 +838,6 @@ function DocList({docs,onEdit,onDelete,onNew}){
   );
 }
 
-/* ── SETTINGS ── */
-function Settings(){
-  return(
-    <div style={{padding:"22px 28px",maxWidth:580,margin:"0 auto"}}>
-      <h2 style={{fontSize:20,marginBottom:18}}>Settings</h2>
-      <div style={{background:"var(--white)",border:"1px solid var(--border)",borderRadius:9,padding:18,marginBottom:14}}>
-        <div style={{fontWeight:600,fontFamily:"var(--font-display)",fontSize:14,marginBottom:10}}>Bank Details (Fixed)</div>
-        <div style={{fontSize:11,color:"var(--ink-soft)",lineHeight:1.9,background:"var(--paper)",borderRadius:7,padding:12}}>
-          <div><strong>Name:</strong> {BANK.name}</div>
-          <div>{BANK.po}</div>
-          <div><strong>Account #:</strong> {BANK.account}</div>
-          <div><strong>Bank:</strong> {BANK.bank} ({BANK.bankTel})</div>
-          <div><strong>ABA Routing #:</strong> {BANK.aba}</div>
-          <div><strong>SWIFT:</strong> {BANK.swift}</div>
-          <div><strong>Correspondent:</strong> {BANK.correspondent}</div>
-        </div>
-        <div style={{fontSize:10,color:"var(--ink-soft)",marginTop:8,fontStyle:"italic"}}>Bank details appear on all documents and cannot be changed here.</div>
-      </div>
-      <div style={{background:"var(--white)",border:"1px solid var(--border)",borderRadius:9,padding:18,marginBottom:14}}>
-        <div style={{fontWeight:600,fontFamily:"var(--font-display)",fontSize:14,marginBottom:6}}>Email Integration</div>
-        <div style={{fontSize:11,color:"var(--ink-soft)",lineHeight:1.7,marginBottom:8}}>
-          Sending uses <strong>Resend</strong> from a Netlify function (<code>netlify/functions/send-email</code>), not from the browser (avoids CORS). In Netlify: <strong>Site settings → Environment variables →</strong> add <code>RESEND_API_KEY</code>.
-        </div>
-        <div style={{fontSize:11,color:"var(--ink-soft)",lineHeight:1.7}}>
-          Verified domain: <strong>@{DOMAIN}</strong><br/>
-          You can send from <em>any</em> address at this domain (e.g. reservations@, accounts@). Set the sender in the Send panel. CC and BCC are supported.
-        </div>
-      </div>
-      <div style={{background:"var(--gold-pale)",border:"1px solid var(--gold-border)",borderRadius:9,padding:14,fontSize:11,color:"var(--warning)",lineHeight:1.7}}>
-        <strong>Netlify Deployment:</strong> Drop the <code>index.html</code> and <code>netlify.toml</code> files into Netlify Drop at app.netlify.com/drop for instant hosting. Or connect a GitHub repo for continuous deployment.
-      </div>
-    </div>
-  );
-}
-
 /* ── APP ── */
 function App(){
   const [tab,setTab]=useState("new");
@@ -899,7 +863,6 @@ function App(){
         {tab==="new"&&<DocEditor onSave={handleSave} initialDoc={editingDoc} key={editingDoc?.id||"new"}/>}
         {tab==="list"&&<DocList docs={docs} onEdit={d=>{setEditingDoc(d);setTab("new");}} onDelete={id=>setDocs(prev=>prev.filter(d=>d.id!==id))} onNew={()=>{setEditingDoc(null);setTab("new");}}/>}
         {tab==="analytics"&&<Analytics docs={docs}/>}
-        {tab==="settings"&&<Settings/>}
       </main>
     </div>
   );
