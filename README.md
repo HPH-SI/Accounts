@@ -7,8 +7,10 @@ Single-page app for quotations, pro forma invoices, and invoices. Open `HP Invoi
 The app does **not** call `api.resend.com` from the browser. That request is blocked by CORS and shows **“Failed to fetch”**. Email is sent via the Netlify serverless function `netlify/functions/send-email`, which holds the API key on the server.
 
 1. Deploy this site to **Netlify** (include `netlify.toml` and the `netlify/functions` folder).
-2. In Netlify: **Site configuration → Environment variables** → add **`RESEND_API_KEY`** with your Resend secret key.
-3. Redeploy if needed so the function picks up the variable.
+2. In Netlify: **Site configuration → Environment variables** → add **`RESEND_API_KEY`** (exact name, from the Resend dashboard) with your Resend API key. **Important:** set the variable’s **scopes** to include **Functions** (e.g. “All scopes” or at least “Functions and deploy contexts” — **not** Build-only, or the serverless function will not see the key and will keep reporting that email is not configured).
+3. **Deploy** the site again (Deploys → Trigger deploy) after adding or changing the variable so the function is rebuilt with the new environment.
+
+Troubleshooting: if the key is set but the error persists, re-check scopes, confirm you’re editing the correct Netlify site, and that the latest deploy completed. Optional alias **`RESEND_KEY`** is also read by the function if you need a duplicate for tooling that reserves certain names.
 
 **Optional:** `window.__HPH_EMAIL_SEND_URL__` — set to a full URL (e.g. another backend) that accepts the same JSON body as Resend’s “send email” API and returns the same shape of success/error JSON.
 

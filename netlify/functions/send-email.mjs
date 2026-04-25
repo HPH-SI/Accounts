@@ -1,5 +1,13 @@
 const RESEND_URL = "https://api.resend.com/emails";
 
+function getResendApiKey() {
+  const raw = process.env.RESEND_API_KEY || process.env.RESEND_KEY;
+  return typeof raw === "string" ? raw.trim() : "";
+}
+
+const MISSING_KEY_MESSAGE =
+  "Resend is not available on the server. In Netlify go to Site configuration → Environment variables, add RESEND_API_KEY (exact name), and set the variable scope to include Functions (not Build only). Redeploy the site, then try again. See project README for details.";
+
 export const handler = async (event) => {
   if (event.httpMethod === "OPTIONS") {
     return { statusCode: 204, headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "Content-Type", "Access-Control-Allow-Methods": "POST, OPTIONS" } };
@@ -7,9 +15,9 @@ export const handler = async (event) => {
   if (event.httpMethod !== "POST") {
     return json(405, { message: "Method Not Allowed" });
   }
-  const key = process.env.RESEND_API_KEY;
+  const key = getResendApiKey();
   if (!key) {
-    return json(500, { message: "Server email is not configured. Set RESEND_API_KEY in Netlify site environment variables." });
+    return json(500, { code: "missing_resend_key", message: MISSING_KEY_MESSAGE });
   }
   let payload;
   try {
