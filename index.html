@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Heritage Park Hotel – Invoice Manager</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --gold:#B8860B;--gold-light:#D4A017;--gold-pale:#FFF8E7;--gold-border:#E8D5A3;
+  --ink:#1A1A1A;--ink-mid:#4A4A4A;--ink-soft:#7A7A7A;
+  --paper:#FAFAF8;--paper-dark:#F2F0EB;--white:#FFFFFF;
+  --accent:#1B3A6B;--accent-light:#E8EEF7;
+  --success:#2D6A4F;--danger:#8B1A1A;--warning:#7B4F00;
+  --border:#D8D4CC;--shadow:0 2px 12px rgba(0,0,0,0.08);
+  --font-display:'Playfair Display',serif;
+  --font-body:'DM Sans',sans-serif;
+}
+body{font-family:var(--font-body);background:var(--paper);color:var(--ink);min-height:100vh}
+h1,h2,h3{font-family:var(--font-display)}
+input,select,textarea{
+  font-family:var(--font-body);font-size:13px;
+  border:1px solid var(--border);border-radius:6px;
+  padding:7px 10px;background:var(--white);color:var(--ink);
+  width:100%;outline:none;transition:border-color .2s;
+  caret-color:var(--ink);
+}
+input,textarea{cursor:text}
+select{cursor:default}
+input:focus,select:focus,textarea:focus{border-color:var(--gold);caret-color:var(--ink)}
+button{font-family:var(--font-body);cursor:pointer}
+table{border-collapse:collapse;width:100%}
+th{font-weight:500;font-size:11px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:10px}
+@media print{
+  body > #root > div > .no-print { display:none!important }
+  body > #root > div > main > div:not(.print-doc-wrapper) { display:none!important }
+  aside { display:none!important }
+  .no-print { display:none!important }
+  body { background:#fff!important }
+  .print-doc { box-shadow:none!important;border:none!important;border-radius:0!important;margin:0!important }
+  main { padding:0!important;margin:0!important;overflow:visible!important }
+  /* Hide everything in main except the doc preview */
+  .editor-left-panel { display:none!important }
+  .editor-wrapper { display:block!important }
+  .print-doc-wrapper { display:block!important }
+}
+@page{size:A4;margin:10mm}
+.doc-page{background:#fff}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const LOGO_SRC = "data:image/png;base64,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";
+const RESEND_API_KEY = "re_QAZwmqLi_JVs5ELxi8pcVuGMUj5cqSa3T";
+const DEFAULT_FROM = "invoices@heritageparkhotel.com.sb";
+const DOMAIN = "heritageparkhotel.com.sb";
+</script>
+<script type="text/babel">
+const { useState, useRef, useCallback, useEffect } = React;
+
+const BANK = {
+  name:"Heritage Park Hotel Limited",
+  po:"PO Box 1598; Mendana Avenue, Honiara, SI",
+  account:"00-0000-2863",
+  bank:"The Bank of South Pacific Limited, Point Cruz, Honiara, Solomon Islands.",
+  bankTel:"Tel: 21874; Fax: 28510",
+  aba:"02600 5092",
+  swift:"BOSPSBSB",
+  correspondent:"Wachovia- NY, 2000-19100-539"
+};
+
+const HOTEL = {
+  name:"Heritage Park Hotel",
+  po:"P.O. Box 1598",
+  city:"Honiara, Solomon Islands",
+  phone:"+677 24007 / 45500",
+  email:"reservations@heritageparkhotel.com.sb"
+};
+
+const DOC_TYPES = ["Quotation","Proforma Invoice","Invoice"];
+const CURRENCIES = ["SBD","USD","NZD","FJD"];
+const defaultRates = {USD:0.118, NZD:0.197, FJD:0.261};
+
+const emptyLine = ()=>({id:Date.now()+Math.random(),type:"line",qty:1,description:"",days:1,unitPrice:0});
+const emptyGroup = (label="")=>({id:Date.now()+Math.random(),type:"group",label});
+
+const fmt = (n,dec=2)=>isNaN(n)?"0.00":Number(n).toLocaleString("en-SB",{minimumFractionDigits:dec,maximumFractionDigits:dec});
+
+function todayStr(){
+  const d=new Date();
+  return d.toISOString().split("T")[0];
+}
+
+function fmtDate(d){
+  if(!d) return "";
+  const [y,m,day]=d.split("-");
+  const months=["January","February","March","April","May","June","July","August","September","October","November","December"];
+  return `${months[+m-1]} ${+day}, ${y}`;
+}
+
+/* ── PDF DOWNLOAD ── */
+async function downloadPDF(docRef, docNumber, docType){
+  const el = docRef.current;
+  if(!el) return;
+  const {jsPDF} = window.jspdf;
+  const canvas = await html2canvas(el, {
+    scale:2, useCORS:true, backgroundColor:"#ffffff",
+    logging:false, imageTimeout:0
+  });
+  const imgData = canvas.toDataURL("image/jpeg", 0.85);
+  const pdf = new jsPDF({orientation:"portrait", unit:"mm", format:"a4"});
+  const pw = pdf.internal.pageSize.getWidth();
+  const ph = pdf.internal.pageSize.getHeight();
+  const cw = canvas.width, ch = canvas.height;
+  const ratio = cw/ch;
+  let imgW = pw - 20, imgH = imgW / ratio;
+  if(imgH > ph - 20){ imgH = ph - 20; imgW = imgH * ratio; }
+  const x = (pw - imgW)/2, y = 10;
+  pdf.addImage(imgData,"JPEG",x,y,imgW,imgH,undefined,"FAST");
+  const fname = (docNumber||docType||"document").replace(/[^a-zA-Z0-9_-]/g,"_");
+  pdf.save(`${fname}.pdf`);
+}
+
+/* ── EMAIL via RESEND ── */
+async function sendViaResend({to, cc, bcc, fromEmail, docType, docNumber, toName, company, subtotal, currency, htmlBody}){
+  const subject = `${docType}${docNumber?" #"+docNumber:""} from Heritage Park Hotel`;
+  const body = {
+    from: fromEmail||DEFAULT_FROM,
+    to: [to],
+    ...(cc&&cc.trim()?{cc:[cc]}:{}),
+    ...(bcc&&bcc.trim()?{bcc:[bcc]}:{}),
+    subject,
+    html: htmlBody||`<p>Dear ${toName||"Client"},</p><p>Please find attached your ${docType}${docNumber?" #"+docNumber:""} from Heritage Park Hotel.</p><p>Total: ${currency} ${fmt(subtotal)}</p><br/><p>Best regards,<br/>Heritage Park Hotel<br/>Honiara, Solomon Islands</p>`
+  };
+  const resp = await fetch("https://api.resend.com/emails",{
+    method:"POST",
+    headers:{"Content-Type":"application/json","Authorization":`Bearer ${RESEND_API_KEY}`},
+    body:JSON.stringify(body)
+  });
+  const data = await resp.json();
+  if(!resp.ok) throw new Error(data.message||"Email failed");
+  return data;
+}
+
+/* ── SIDEBAR ── */
+function Sidebar({activeTab, setActiveTab, docs}){
+  const tabs=[
+    {id:"new",label:"New Document",icon:"✦"},
+    {id:"list",label:"Documents",icon:"≡"},
+    {id:"analytics",label:"Analytics",icon:"◈"},
+    {id:"settings",label:"Settings",icon:"⚙"},
+  ];
+  return(
+    <aside style={{width:214,background:"var(--accent)",minHeight:"100vh",display:"flex",flexDirection:"column",flexShrink:0,position:"sticky",top:0,height:"100vh",overflowY:"auto"}}>
+      <div style={{padding:"22px 18px 14px",borderBottom:"1px solid rgba(255,255,255,0.1)"}}>
+        <img src={LOGO_SRC} alt="Heritage Park Hotel" style={{width:"100%",maxWidth:140,filter:"brightness(10)",marginBottom:4}}/>
+        <div style={{color:"rgba(255,255,255,0.45)",fontSize:10,letterSpacing:".08em",textTransform:"uppercase"}}>Invoice Manager</div>
+      </div>
+      <nav style={{flex:1,padding:"10px 0"}}>
+        {tabs.map(t=>(
+          <button key={t.id} onClick={()=>setActiveTab(t.id)}
+            style={{
+              width:"100%",display:"flex",alignItems:"center",gap:10,
+              padding:"10px 18px",border:"none",
+              background:activeTab===t.id?"rgba(255,255,255,0.12)":"transparent",
+              color:activeTab===t.id?"#fff":"rgba(255,255,255,0.5)",
+              fontSize:13,textAlign:"left",cursor:"pointer",transition:"all .15s",
+              borderLeft:activeTab===t.id?"3px solid #C9A84C":"3px solid transparent",
+            }}>
+            <span style={{fontSize:13}}>{t.icon}</span>
+            {t.label}
+            {t.id==="list"&&docs.length>0&&(
+              <span style={{marginLeft:"auto",background:"rgba(201,168,76,0.25)",color:"#C9A84C",fontSize:10,padding:"2px 6px",borderRadius:10}}>{docs.length}</span>
+            )}
+          </button>
+        ))}
+      </nav>
+      <div style={{padding:"12px 18px",borderTop:"1px solid rgba(255,255,255,0.1)"}}>
+        <div style={{color:"rgba(255,255,255,0.25)",fontSize:9,textAlign:"center"}}>v2.0 • Heritage Park Hotel</div>
+      </div>
+    </aside>
+  );
+}
+
+/* ── LINE ROW ── */
+function LineRow({line, onChange, onRemove, currency, rates, isPrint}){
+  const total = line.qty * line.days * line.unitPrice;
+  const displayAmt = (sbd)=>{
+    if(currency==="SBD") return fmt(sbd);
+    return fmt(sbd*(rates[currency]||1));
+  };
+  if(isPrint){
+    return(
+      <tr style={{borderBottom:"1px solid #eee"}}>
+        <td style={{padding:"5px 6px",textAlign:"center",fontSize:12}}>{line.qty}</td>
+        <td style={{padding:"5px 6px",fontSize:12}}>{line.description}</td>
+        <td style={{padding:"5px 6px",textAlign:"center",fontSize:12}}>{line.days}</td>
+        <td style={{padding:"5px 6px",textAlign:"right",fontSize:12}}>$ {fmt(line.unitPrice)}</td>
+        <td style={{padding:"5px 6px",textAlign:"right",fontSize:12,fontWeight:500}}>$ {displayAmt(total)}</td>
+      </tr>
+    );
+  }
+  return(
+    <tr>
+      <td style={{padding:"5px 3px"}}><input type="number" min="1" value={line.qty} style={{width:46,textAlign:"center",fontSize:12}} onChange={e=>onChange({...line,qty:+e.target.value})}/></td>
+      <td style={{padding:"5px 3px"}}><input value={line.description} placeholder="Description…" style={{fontSize:12}} onChange={e=>onChange({...line,description:e.target.value})}/></td>
+      <td style={{padding:"5px 3px"}}><input type="number" min="0" value={line.days} style={{width:46,textAlign:"center",fontSize:12}} onChange={e=>onChange({...line,days:+e.target.value})}/></td>
+      <td style={{padding:"5px 3px"}}><input type="number" min="0" step="0.01" value={line.unitPrice} style={{width:90,textAlign:"right",fontSize:12}} onChange={e=>onChange({...line,unitPrice:+e.target.value})}/></td>
+      <td style={{padding:"5px 3px",textAlign:"right",fontSize:12,fontWeight:500,whiteSpace:"nowrap",minWidth:90}}>$ {displayAmt(total)}</td>
+      <td style={{padding:"5px 3px",textAlign:"center"}}><button onClick={onRemove} style={{border:"none",background:"none",color:"#C0392B",fontSize:16,cursor:"pointer",lineHeight:1,padding:"0 4px"}}>×</button></td>
+    </tr>
+  );
+}
+
+/* ── GROUP ROW ── */
+function GroupRow({group, onChange, onRemove, isPrint}){
+  if(isPrint){
+    return(
+      <tr>
+        <td colSpan={5} style={{padding:"10px 6px 4px",fontWeight:700,fontSize:12,fontFamily:"var(--font-display)",color:"var(--accent)",textAlign:"center",borderBottom:"1px solid var(--accent)"}}>
+          {group.label}
+        </td>
+      </tr>
+    );
+  }
+  return(
+    <tr>
+      <td colSpan={6} style={{padding:"10px 3px 3px"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <div style={{height:1,flex:1,background:"var(--border)"}}/>
+          <input value={group.label} onChange={e=>onChange({...group,label:e.target.value})}
+            style={{fontFamily:"var(--font-display)",fontWeight:600,fontSize:13,border:"none",
+              background:"transparent",textAlign:"center",color:"var(--accent)",
+              padding:"2px 8px",width:"auto",minWidth:200}}
+            placeholder="Group heading…"/>
+          <button onClick={onRemove} style={{border:"none",background:"none",color:"var(--ink-soft)",fontSize:14,cursor:"pointer",padding:"0 4px"}}>×</button>
+          <div style={{height:1,flex:1,background:"var(--border)"}}/>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+/* ── DOCUMENT PREVIEW (used for display + PDF capture) ── */
+const DocPreview = React.forwardRef(function DocPreview({
+  docType,docNumber,docDate,toName,company,phone,clientEmail,
+  currency,rates,items,subtotal,deposit,deposit2,balance,notes,
+  eventLabel,salesperson,
+  onUpdateItem,onRemoveItem,onAddLine,onAddGroup,
+  isPrint
+}, ref){
+  const lines = items.filter(i=>i.type==="line");
+  const totalDeposit=(+deposit)+(+deposit2);
+
+  const displayAmt=(sbd)=>{
+    if(currency==="SBD") return fmt(sbd);
+    return fmt(sbd*(rates[currency]||1));
+  };
+
+  const rowStyle={display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:1,marginBottom:18,border:"1px solid var(--border)",borderRadius:6,overflow:"hidden"};
+
+  return(
+    <div ref={ref} className="doc-page" style={{padding:"28px 36px",fontFamily:"var(--font-body)",fontSize:13,background:"#fff",minHeight:297*3.78}}>
+
+      {/* Header */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:22}}>
+        <div>
+          <div style={{fontFamily:"var(--font-display)",fontSize:24,fontWeight:700,color:"var(--accent)",letterSpacing:".01em"}}>{docType.toUpperCase()}</div>
+          {docDate&&<div style={{color:"var(--ink-soft)",fontSize:11,marginTop:1}}>{fmtDate(docDate)}</div>}
+          {docNumber&&<div style={{fontSize:11,color:"var(--gold)",fontWeight:600,marginTop:2,letterSpacing:".05em"}}>{docNumber}</div>}
+        </div>
+        <img src={LOGO_SRC} alt="Heritage Park Hotel" style={{height:60,width:"auto",objectFit:"contain"}}/>
+      </div>
+
+      {/* From / To */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:24,marginBottom:16,paddingBottom:16,borderBottom:"1px solid var(--border)"}}>
+        <div>
+          <div style={{fontWeight:600,fontSize:10,color:"var(--ink-soft)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:5}}>From</div>
+          <div style={{fontWeight:600,fontSize:13,color:"var(--ink)",marginBottom:2}}>{HOTEL.name}</div>
+          <div style={{color:"var(--ink-soft)",lineHeight:1.75,fontSize:11}}>{HOTEL.po}<br/>{HOTEL.city}<br/>Ph.: {HOTEL.phone}<br/>{HOTEL.email}</div>
+        </div>
+        <div>
+          <div style={{fontWeight:600,fontSize:10,color:"var(--ink-soft)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:5}}>To</div>
+          {toName&&<div style={{fontWeight:700,fontSize:14,color:"var(--accent)",fontFamily:"var(--font-display)",marginBottom:2}}>{toName}</div>}
+          {company&&<div style={{fontWeight:600,color:"var(--ink)",fontSize:12,marginBottom:1}}>{company}</div>}
+          {phone&&<div style={{color:"var(--ink-soft)",fontSize:11}}>Phone: {phone}</div>}
+          {clientEmail&&<div style={{color:"var(--ink-soft)",fontSize:11}}>E: {clientEmail}</div>}
+        </div>
+      </div>
+
+      {/* Meta */}
+      <div style={rowStyle}>
+        {[["Sales Person",salesperson||"—"],["Event",eventLabel||"—"],["Currency",currency]].map(([k,v])=>(
+          <div key={k} style={{padding:"7px 12px",background:"var(--paper)"}}>
+            <div style={{fontSize:9,color:"var(--ink-soft)",textTransform:"uppercase",letterSpacing:".06em"}}>{k}</div>
+            <div style={{fontWeight:500,fontSize:12,marginTop:2}}>{v}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Table */}
+      <table style={{marginBottom:8,fontSize:12}}>
+        <thead>
+          <tr style={{borderBottom:"2px solid var(--accent)"}}>
+            <th style={{padding:"5px 6px",width:44,textAlign:"center"}}>QTY</th>
+            <th style={{padding:"5px 6px",textAlign:"left"}}>Description</th>
+            <th style={{padding:"5px 6px",width:50,textAlign:"center"}}>Day</th>
+            <th style={{padding:"5px 6px",width:100,textAlign:"right"}}>Unit Price</th>
+            <th style={{padding:"5px 6px",width:105,textAlign:"right"}}>Total</th>
+            {!isPrint&&<th style={{width:26}}></th>}
+          </tr>
+        </thead>
+        <tbody>
+          {items.map(item=>(
+            item.type==="group"
+              ?<GroupRow key={item.id} group={item} isPrint={isPrint}
+                  onChange={v=>onUpdateItem&&onUpdateItem(item.id,v)}
+                  onRemove={()=>onRemoveItem&&onRemoveItem(item.id)}/>
+              :<LineRow key={item.id} line={item} currency={currency} rates={rates} isPrint={isPrint}
+                  onChange={v=>onUpdateItem&&onUpdateItem(item.id,v)}
+                  onRemove={()=>onRemoveItem&&onRemoveItem(item.id)}/>
+          ))}
+        </tbody>
+      </table>
+
+      {/* Add buttons */}
+      {!isPrint&&(
+        <div className="no-print" style={{display:"flex",gap:8,marginBottom:16}}>
+          <button onClick={onAddLine} style={{padding:"5px 12px",borderRadius:5,border:"1px dashed var(--border)",background:"transparent",color:"var(--accent)",fontSize:11,cursor:"pointer"}}>+ Add Line</button>
+          <button onClick={onAddGroup} style={{padding:"5px 12px",borderRadius:5,border:"1px dashed var(--border)",background:"transparent",color:"var(--ink-soft)",fontSize:11,cursor:"pointer"}}>+ Add Group Heading</button>
+        </div>
+      )}
+
+      {/* Notes */}
+      {notes&&(
+        <div style={{background:"var(--paper)",borderLeft:"3px solid var(--gold)",padding:"8px 12px",borderRadius:"0 5px 5px 0",fontSize:11,color:"var(--ink-mid)",marginBottom:14,fontStyle:"italic",lineHeight:1.6}}>
+          {notes}
+        </div>
+      )}
+
+      {/* Surcharge note */}
+      <div style={{fontSize:10,color:"var(--ink-soft)",marginBottom:10,fontStyle:"italic"}}>
+        <em>Please Note: Debit / Credit Card Surcharge 2.6% applicable</em>
+      </div>
+
+      {/* Totals */}
+      <div style={{display:"flex",justifyContent:"flex-end",marginBottom:20}}>
+        <div style={{width:260,borderTop:"1px solid var(--border)",paddingTop:10}}>
+          {[
+            {label:"Subtotal",val:subtotal,isDeposit:false,isBold:false},
+            ...(+deposit?[{label:"Deposit",val:+deposit,isDeposit:true}]:[]),
+            ...(+deposit2?[{label:"",val:+deposit2,isDeposit:true}]:[]),
+            {label:"SBD Total",val:balance,isDeposit:false,isBold:true,isLast:true},
+          ].map((row,i)=>(
+            <div key={i} style={{
+              display:"flex",justifyContent:"space-between",
+              padding:"4px 0",
+              borderBottom:row.isLast?"2px solid var(--accent)":"none",
+              fontWeight:row.isBold?700:400,
+              fontSize:row.isBold?14:12,
+              color:row.isDeposit?"var(--success)":"var(--ink)"
+            }}>
+              <span>{row.label} {currency}</span>
+              <span>{row.isDeposit?"("+displayAmt(row.val)+")":displayAmt(row.val)}</span>
+            </div>
+          ))}
+          {currency!=="SBD"&&(
+            <div style={{fontSize:9,color:"var(--ink-soft)",textAlign:"right",marginTop:3}}>
+              ≈ SBD {fmt(balance)} • Rate: 1 SBD = {rates[currency]} {currency}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Bank */}
+      <div style={{borderTop:"2px solid var(--border)",paddingTop:16,fontSize:10,color:"var(--ink-soft)",lineHeight:1.9}}>
+        <div style={{fontWeight:700,color:"var(--ink)",fontSize:12,fontFamily:"var(--font-display)",marginBottom:6}}>Thank you for your business!</div>
+        <div style={{fontWeight:600,color:"var(--ink-mid)",fontSize:10,marginBottom:3}}>For Inward Remittances:</div>
+        <div>{BANK.name}</div>
+        <div>{BANK.po}</div>
+        <div>Account #: {BANK.account}</div>
+        <div>Account with: {BANK.bank} ({BANK.bankTel})</div>
+        <div>ABA Routing #: {BANK.aba}. &nbsp; SWIFT: {BANK.swift}</div>
+        <div>A/c with: {BANK.correspondent}</div>
+      </div>
+    </div>
+  );
+});
+
+/* Small UI pieces must stay outside DocEditor: inner components are new types every render
+   and React remounts all children, so inputs lose focus on every keystroke. */
+const EditorLabelSm=({children})=><label style={{fontSize:10,color:"var(--ink-soft)",display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:".05em"}}>{children}</label>;
+const EditorCard=({title,children,mb=14})=>(
+  <div style={{background:"var(--white)",border:"1px solid var(--border)",borderRadius:9,padding:14,marginBottom:mb}}>
+    {title&&<div style={{fontSize:12,fontWeight:600,color:"var(--ink-mid)",marginBottom:10,fontFamily:"var(--font-display)"}}>{title}</div>}
+    {children}
+  </div>
+);
+
+/* ── EDITOR ── */
+function DocEditor({onSave, initialDoc}){
+  const [docType,setDocType]=useState(initialDoc?.docType||"Invoice");
+  const [docNumber,setDocNumber]=useState(initialDoc?.docNumber||"");
+  const [docDate,setDocDate]=useState(initialDoc?.docDate||todayStr());
+  const [toName,setToName]=useState(initialDoc?.toName||"");
+  const [company,setCompany]=useState(initialDoc?.company||"");
+  const [phone,setPhone]=useState(initialDoc?.phone||"");
+  const [clientEmail,setClientEmail]=useState(initialDoc?.clientEmail||"");
+  const [currency,setCurrency]=useState(initialDoc?.currency||"SBD");
+  const [rates,setRates]=useState(initialDoc?.rates||{...defaultRates});
+  const [deposit,setDeposit]=useState(initialDoc?.deposit||0);
+  const [deposit2,setDeposit2]=useState(initialDoc?.deposit2||0);
+  const [notes,setNotes]=useState(initialDoc?.notes||"The above rate is inclusive of taxes, 1.5GB complimentary Wi-Fi & Bottled water every day & full breakfast buffet.");
+  const [eventLabel,setEventLabel]=useState(initialDoc?.eventLabel||"Accommodation");
+  const [salesperson,setSalesperson]=useState(initialDoc?.salesperson||"");
+  const [items,setItems]=useState(initialDoc?.items||[emptyLine()]);
+  const [emailTo,setEmailTo]=useState(initialDoc?.clientEmail||"");
+  const [emailCC,setEmailCC]=useState("");
+  const [emailBCC,setEmailBCC]=useState("");
+  const [fromEmail,setFromEmail]=useState(DEFAULT_FROM);
+  const [showCCBCC,setShowCCBCC]=useState(false);
+  const [emailStatus,setEmailStatus]=useState("idle"); // idle|sending|success|error
+  const [emailError,setEmailError]=useState("");
+  const [pdfLoading,setPdfLoading]=useState(false);
+
+  const docRef=useRef(null);
+  const printDocRef=useRef(null);
+
+  const lines=items.filter(i=>i.type==="line");
+  const subtotal=lines.reduce((s,l)=>s+l.qty*l.days*l.unitPrice,0);
+  const totalDeposit=(+deposit)+(+deposit2);
+  const balance=subtotal-totalDeposit;
+
+  const docObj={
+    id:initialDoc?.id||Date.now(),
+    docType,docNumber,docDate,toName,company,phone,clientEmail,
+    currency,rates,deposit,deposit2,notes,eventLabel,salesperson,
+    items,subtotal,balance
+  };
+
+  const handleSave=()=>onSave(docObj);
+
+  const handlePDF=async()=>{
+    setPdfLoading(true);
+    try{
+      // Use the hidden print version
+      await downloadPDF(printDocRef, docNumber||docType, docType);
+    }catch(e){console.error(e);}
+    setPdfLoading(false);
+  };
+
+  const handleEmail=async()=>{
+    if(!emailTo.trim()){setEmailError("Please enter a recipient email");return;}
+    setEmailStatus("sending"); setEmailError("");
+    try{
+      await sendViaResend({
+        to:emailTo,cc:emailCC,bcc:emailBCC,fromEmail,
+        docType,docNumber,toName,company,subtotal,currency
+      });
+      setEmailStatus("success");
+      setTimeout(()=>setEmailStatus("idle"),5000);
+    }catch(e){
+      setEmailStatus("error");
+      setEmailError(e.message||"Failed to send");
+    }
+  };
+
+  const updateItem=(id,val)=>setItems(prev=>prev.map(i=>i.id===id?val:i));
+  const removeItem=(id)=>setItems(prev=>prev.filter(i=>i.id!==id));
+  const addLine=()=>setItems(prev=>[...prev,emptyLine()]);
+  const addGroup=()=>setItems(prev=>[...prev,emptyGroup("Group Heading")]);
+
+  return(
+    <div style={{display:"flex",gap:20,maxWidth:1120,margin:"0 auto",padding:"20px 16px",alignItems:"flex-start",minHeight:"calc(100vh - 40px)"}}>
+      {/* Left */}
+      <div className="editor-left-panel no-print" style={{flex:"0 0 320px",paddingRight:4,paddingBottom:24}}>
+
+        <EditorCard mb={12}>
+          <EditorLabelSm>Document Type</EditorLabelSm>
+          <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+            {DOC_TYPES.map(dt=>(
+              <button key={dt} onClick={()=>setDocType(dt)} style={{
+                padding:"5px 11px",borderRadius:16,fontSize:11,border:"1px solid",
+                background:docType===dt?"var(--accent)":"transparent",
+                color:docType===dt?"#fff":"var(--ink-mid)",
+                borderColor:docType===dt?"var(--accent)":"var(--border)",cursor:"pointer"
+              }}>{dt}</button>
+            ))}
+          </div>
+        </EditorCard>
+
+        <EditorCard title="Document Details" mb={12}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+            <div><EditorLabelSm>Doc Number</EditorLabelSm><input value={docNumber} onChange={e=>setDocNumber(e.target.value)} placeholder="AFP/HPHL/001"/></div>
+            <div><EditorLabelSm>Date</EditorLabelSm><input type="date" value={docDate} onChange={e=>setDocDate(e.target.value)}/></div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            <div><EditorLabelSm>Salesperson</EditorLabelSm><input value={salesperson} onChange={e=>setSalesperson(e.target.value)} placeholder="YASH"/></div>
+            <div><EditorLabelSm>Event</EditorLabelSm><input value={eventLabel} onChange={e=>setEventLabel(e.target.value)} placeholder="Accommodation"/></div>
+          </div>
+        </EditorCard>
+
+        <EditorCard title="Client Information" mb={12}>
+          <div style={{display:"grid",gap:8}}>
+            <div><EditorLabelSm>To (Name)</EditorLabelSm><input value={toName} onChange={e=>setToName(e.target.value)} placeholder="SANDRA HUGHES"/></div>
+            <div><EditorLabelSm>Company</EditorLabelSm><input value={company} onChange={e=>setCompany(e.target.value)} placeholder="Australian Federal Police"/></div>
+            <div><EditorLabelSm>Phone</EditorLabelSm><input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="+61 ..."/></div>
+            <div><EditorLabelSm>Email</EditorLabelSm><input type="email" value={clientEmail} onChange={e=>setClientEmail(e.target.value)} placeholder="client@example.com"/></div>
+          </div>
+        </EditorCard>
+
+        <EditorCard title="Currency & Exchange" mb={12}>
+          <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:currency!=="SBD"?10:0}}>
+            {CURRENCIES.map(c=>(
+              <button key={c} onClick={()=>setCurrency(c)} style={{
+                padding:"4px 10px",borderRadius:14,fontSize:11,border:"1px solid",
+                background:currency===c?"var(--gold)":"transparent",
+                color:currency===c?"#fff":"var(--ink-mid)",
+                borderColor:currency===c?"var(--gold)":"var(--border)",cursor:"pointer"
+              }}>{c}</button>
+            ))}
+          </div>
+          {currency!=="SBD"&&(
+            <div>
+              <EditorLabelSm>1 SBD = ? {currency}</EditorLabelSm>
+              <input type="number" step="0.0001" value={rates[currency]} onChange={e=>setRates(p=>({...p,[currency]:+e.target.value}))}/>
+            </div>
+          )}
+        </EditorCard>
+
+        <EditorCard title="Deposits Received" mb={12}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            <div><EditorLabelSm>Deposit 1 (SBD)</EditorLabelSm><input type="number" value={deposit} onChange={e=>setDeposit(+e.target.value)}/></div>
+            <div><EditorLabelSm>Deposit 2 (SBD)</EditorLabelSm><input type="number" value={deposit2} onChange={e=>setDeposit2(+e.target.value)}/></div>
+          </div>
+        </EditorCard>
+
+        <EditorCard mb={12}>
+          <EditorLabelSm>Notes / Footer</EditorLabelSm>
+          <textarea value={notes} rows={3} onChange={e=>setNotes(e.target.value)} style={{resize:"vertical",fontSize:12,lineHeight:1.5}}/>
+        </EditorCard>
+
+        {/* Email */}
+        <EditorCard title="Send Document" mb={12}>
+          <div style={{marginBottom:8}}>
+            <EditorLabelSm>From</EditorLabelSm>
+            <div style={{display:"flex",alignItems:"center",gap:0,border:"1px solid var(--border)",borderRadius:6,overflow:"hidden",background:"var(--white)"}}>
+              <input value={fromEmail.split("@")[0]} onChange={e=>{const u=e.target.value.replace(/[^a-zA-Z0-9._+-]/g,"");setFromEmail(u+"@"+DOMAIN);}}
+                style={{border:"none",borderRadius:0,flex:1,fontSize:12,padding:"7px 8px"}} placeholder="invoices"/>
+              <span style={{padding:"7px 8px",background:"var(--paper)",color:"var(--ink-soft)",fontSize:11,borderLeft:"1px solid var(--border)",whiteSpace:"nowrap",userSelect:"none"}}>@{DOMAIN}</span>
+            </div>
+          </div>
+          <div style={{marginBottom:8}}>
+            <EditorLabelSm>To</EditorLabelSm>
+            <input type="email" value={emailTo} onChange={e=>setEmailTo(e.target.value)} placeholder="client@example.com"/>
+          </div>
+          <button onClick={()=>setShowCCBCC(!showCCBCC)} style={{fontSize:11,color:"var(--accent)",background:"none",border:"none",cursor:"pointer",padding:"0 0 8px",display:"block"}}>
+            {showCCBCC?"▾":"▸"} CC / BCC
+          </button>
+          {showCCBCC&&(
+            <div style={{display:"grid",gap:8,marginBottom:8}}>
+              <div><EditorLabelSm>CC</EditorLabelSm><input type="email" value={emailCC} onChange={e=>setEmailCC(e.target.value)}/></div>
+              <div><EditorLabelSm>BCC</EditorLabelSm><input type="email" value={emailBCC} onChange={e=>setEmailBCC(e.target.value)}/></div>
+            </div>
+          )}
+          {emailError&&<div style={{fontSize:11,color:"var(--danger)",marginBottom:6,padding:"5px 8px",background:"#fef2f2",borderRadius:5}}>{emailError}</div>}
+          <button onClick={handleEmail} disabled={emailStatus==="sending"}
+            style={{
+              width:"100%",padding:"8px",borderRadius:7,border:"none",
+              background:emailStatus==="success"?"var(--success)":emailStatus==="error"?"var(--danger)":emailStatus==="sending"?"var(--border)":"var(--accent)",
+              color:"#fff",fontWeight:500,fontSize:13,cursor:emailStatus==="sending"?"default":"pointer",transition:"background .3s"
+            }}>
+            {emailStatus==="success"?"✓ Email Sent!":emailStatus==="sending"?"Sending…":emailStatus==="error"?"Retry":"Send"}
+          </button>
+        </EditorCard>
+
+        {/* Action buttons */}
+        <div style={{display:"flex",gap:8,marginBottom:20}}>
+          <button onClick={handleSave} style={{flex:1,padding:"9px",borderRadius:7,border:"none",background:"var(--gold)",color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}}>
+            Save
+          </button>
+          <button onClick={handlePDF} disabled={pdfLoading} style={{flex:1,padding:"9px",borderRadius:7,border:"1px solid var(--border)",background:"var(--white)",color:"var(--ink-mid)",fontSize:13,cursor:"pointer"}}>
+            {pdfLoading?"Generating…":"⬇ PDF"}
+          </button>
+          <button onClick={()=>{
+            // Print only the document
+            const el = docRef.current;
+            if(!el) return;
+            const win = window.open("","_blank","width=900,height=700");
+            win.document.write(`<!DOCTYPE html><html><head><meta charset='UTF-8'><style>@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap');*{box-sizing:border-box;margin:0;padding:0}body{font-family:'DM Sans',sans-serif;background:#fff}@page{size:A4;margin:10mm}</style></head><body>${el.outerHTML}</body></html>`);
+            win.document.close();
+            win.onload=()=>{win.focus();win.print();win.close();};
+          }} style={{padding:"9px 12px",borderRadius:7,border:"1px solid var(--border)",background:"var(--white)",color:"var(--ink-soft)",fontSize:13,cursor:"pointer"}}>
+            🖨
+          </button>
+        </div>
+      </div>
+
+      {/* Right: live preview */}
+      <div style={{flex:1,minWidth:0}}>
+        <div className="print-doc" className="print-doc-wrapper" style={{background:"var(--white)",border:"1px solid var(--border)",borderRadius:10,boxShadow:"var(--shadow)"}}>
+          <DocPreview ref={docRef}
+            docType={docType} docNumber={docNumber} docDate={docDate}
+            toName={toName} company={company} phone={phone} clientEmail={clientEmail}
+            currency={currency} rates={rates} items={items}
+            subtotal={subtotal} deposit={deposit} deposit2={deposit2} balance={balance}
+            notes={notes} eventLabel={eventLabel} salesperson={salesperson}
+            onUpdateItem={updateItem} onRemoveItem={removeItem}
+            onAddLine={addLine} onAddGroup={addGroup}
+            isPrint={false}
+          />
+        </div>
+      </div>
+
+      {/* Hidden print-quality doc for PDF */}
+      <div style={{position:"fixed",left:"-9999px",top:0,width:794,background:"#fff",zIndex:-1}}>
+        <DocPreview ref={printDocRef}
+          docType={docType} docNumber={docNumber} docDate={docDate}
+          toName={toName} company={company} phone={phone} clientEmail={clientEmail}
+          currency={currency} rates={rates} items={items}
+          subtotal={subtotal} deposit={deposit} deposit2={deposit2} balance={balance}
+          notes={notes} eventLabel={eventLabel} salesperson={salesperson}
+          onUpdateItem={()=>{}} onRemoveItem={()=>{}}
+          onAddLine={()=>{}} onAddGroup={()=>{}}
+          isPrint={true}
+        />
+      </div>
+    </div>
+  );
+}
+
+/* ── ANALYTICS ── */
+function Analytics({docs}){
+  const total=docs.reduce((s,d)=>s+d.subtotal,0);
+  const paid=docs.reduce((s,d)=>s+(+d.deposit)+(+d.deposit2),0);
+  const outstanding=total-paid;
+  const byType=DOC_TYPES.map(t=>({type:t,count:docs.filter(d=>d.docType===t).length}));
+  const recent=[...docs].sort((a,b)=>new Date(b.docDate)-new Date(a.docDate)).slice(0,10);
+
+  const Stat=({label,value,color="var(--ink)",sub})=>(
+    <div style={{background:"var(--white)",border:"1px solid var(--border)",borderRadius:9,padding:"14px 18px",flex:1}}>
+      <div style={{fontSize:10,color:"var(--ink-soft)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:5}}>{label}</div>
+      <div style={{fontSize:20,fontWeight:700,color,fontFamily:"var(--font-display)"}}>{value}</div>
+      {sub&&<div style={{fontSize:10,color:"var(--ink-soft)",marginTop:3}}>{sub}</div>}
+    </div>
+  );
+
+  return(
+    <div style={{padding:"22px 28px",maxWidth:960,margin:"0 auto"}}>
+      <h2 style={{fontSize:20,marginBottom:4}}>Analytics & Reconciliation</h2>
+      <div style={{color:"var(--ink-soft)",fontSize:12,marginBottom:20}}>{docs.length} document{docs.length!==1?"s":""} on record</div>
+      <div style={{display:"flex",gap:10,marginBottom:14,flexWrap:"wrap"}}>
+        <Stat label="Total Invoiced" value={`SBD ${fmt(total)}`} sub={`${docs.length} documents`}/>
+        <Stat label="Deposits Received" value={`SBD ${fmt(paid)}`} color="var(--success)" sub="Collected"/>
+        <Stat label="Outstanding" value={`SBD ${fmt(outstanding)}`} color={outstanding>0?"var(--danger)":"var(--success)"} sub="Balance due"/>
+      </div>
+      <div style={{display:"flex",gap:10,marginBottom:20}}>
+        {byType.map(b=>(
+          <div key={b.type} style={{background:"var(--white)",border:"1px solid var(--border)",borderRadius:9,padding:"12px 16px",flex:1,textAlign:"center"}}>
+            <div style={{fontSize:22,fontWeight:700,fontFamily:"var(--font-display)",color:"var(--accent)"}}>{b.count}</div>
+            <div style={{fontSize:10,color:"var(--ink-soft)"}}>{b.type}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{background:"var(--white)",border:"1px solid var(--border)",borderRadius:9,overflow:"hidden"}}>
+        <div style={{padding:"12px 18px",borderBottom:"1px solid var(--border)",fontWeight:600,fontFamily:"var(--font-display)",fontSize:13}}>All Documents</div>
+        {recent.length===0
+          ?<div style={{padding:"32px",textAlign:"center",color:"var(--ink-soft)",fontSize:13}}>No documents yet.</div>
+          :<table style={{fontSize:12}}>
+            <thead><tr style={{borderBottom:"1px solid var(--border)"}}>
+              {["#","Type","To","Company","Date","Subtotal","Deposits","Balance"].map(h=>(
+                <th key={h} style={{padding:"9px 14px",textAlign:["Subtotal","Deposits","Balance"].includes(h)?"right":"left"}}>{h}</th>
+              ))}
+            </tr></thead>
+            <tbody>
+              {recent.map(d=>(
+                <tr key={d.id} style={{borderBottom:"1px solid var(--paper-dark)"}}>
+                  <td style={{padding:"9px 14px",color:"var(--gold)",fontWeight:600}}>{d.docNumber||"—"}</td>
+                  <td style={{padding:"9px 14px"}}><span style={{
+                    background:d.docType==="Invoice"?"#E8EEF7":d.docType==="Quotation"?"#FFF8E7":"#E8F5E9",
+                    color:d.docType==="Invoice"?"var(--accent)":d.docType==="Quotation"?"var(--warning)":"var(--success)",
+                    padding:"2px 7px",borderRadius:8,fontSize:10,fontWeight:600
+                  }}>{d.docType}</span></td>
+                  <td style={{padding:"9px 14px",fontWeight:500}}>{d.toName||"—"}</td>
+                  <td style={{padding:"9px 14px",color:"var(--ink-soft)"}}>{d.company||"—"}</td>
+                  <td style={{padding:"9px 14px",color:"var(--ink-soft)"}}>{d.docDate||"—"}</td>
+                  <td style={{padding:"9px 14px",textAlign:"right"}}>SBD {fmt(d.subtotal)}</td>
+                  <td style={{padding:"9px 14px",textAlign:"right",color:"var(--success)"}}>SBD {fmt((+d.deposit)+(+d.deposit2))}</td>
+                  <td style={{padding:"9px 14px",textAlign:"right",fontWeight:600,color:d.balance>0?"var(--danger)":"var(--success)"}}>
+                    {d.balance>0?`SBD ${fmt(d.balance)}`:"✓ Paid"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        }
+      </div>
+    </div>
+  );
+}
+
+/* ── DOC LIST ── */
+function DocList({docs,onEdit,onDelete,onNew}){
+  return(
+    <div style={{padding:"22px 28px",maxWidth:960,margin:"0 auto"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+        <div>
+          <h2 style={{fontSize:20,marginBottom:3}}>Documents</h2>
+          <div style={{color:"var(--ink-soft)",fontSize:12}}>{docs.length} total</div>
+        </div>
+        <button onClick={onNew} style={{padding:"8px 16px",borderRadius:7,border:"none",background:"var(--accent)",color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}}>+ New</button>
+      </div>
+      {docs.length===0?(
+        <div style={{background:"var(--white)",border:"1px dashed var(--border)",borderRadius:10,padding:"50px 32px",textAlign:"center",color:"var(--ink-soft)"}}>
+          <div style={{fontSize:28,marginBottom:10}}>📄</div>
+          <div style={{fontWeight:500,marginBottom:10}}>No documents yet</div>
+          <button onClick={onNew} style={{padding:"7px 18px",borderRadius:7,border:"none",background:"var(--gold)",color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}}>Create first document</button>
+        </div>
+      ):(
+        <div style={{background:"var(--white)",border:"1px solid var(--border)",borderRadius:9,overflow:"hidden"}}>
+          <table style={{fontSize:12}}>
+            <thead><tr style={{borderBottom:"1px solid var(--border)",background:"var(--paper)"}}>
+              {["Number","Type","To","Company","Date","Amount","Balance",""].map(h=>(
+                <th key={h} style={{padding:"9px 14px",textAlign:["Amount","Balance"].includes(h)?"right":"left"}}>{h}</th>
+              ))}
+            </tr></thead>
+            <tbody>
+              {[...docs].sort((a,b)=>new Date(b.docDate)-new Date(a.docDate)).map(d=>(
+                <tr key={d.id} style={{borderBottom:"1px solid var(--paper-dark)"}}>
+                  <td style={{padding:"11px 14px",color:"var(--gold)",fontWeight:600,fontFamily:"var(--font-display)"}}>{d.docNumber||"—"}</td>
+                  <td style={{padding:"11px 14px"}}><span style={{
+                    background:d.docType==="Invoice"?"#E8EEF7":d.docType==="Quotation"?"#FFF8E7":"#E8F5E9",
+                    color:d.docType==="Invoice"?"var(--accent)":d.docType==="Quotation"?"var(--warning)":"var(--success)",
+                    padding:"2px 7px",borderRadius:8,fontSize:10,fontWeight:600
+                  }}>{d.docType}</span></td>
+                  <td style={{padding:"11px 14px",fontWeight:500}}>{d.toName||"—"}</td>
+                  <td style={{padding:"11px 14px",color:"var(--ink-soft)"}}>{d.company||"—"}</td>
+                  <td style={{padding:"11px 14px",color:"var(--ink-soft)"}}>{d.docDate||"—"}</td>
+                  <td style={{padding:"11px 14px",textAlign:"right"}}>SBD {fmt(d.subtotal)}</td>
+                  <td style={{padding:"11px 14px",textAlign:"right",fontWeight:600,color:d.balance>0?"var(--danger)":"var(--success)"}}>
+                    {d.balance>0?`SBD ${fmt(d.balance)}`:"✓ Paid"}
+                  </td>
+                  <td style={{padding:"11px 14px"}}>
+                    <div style={{display:"flex",gap:5}}>
+                      <button onClick={()=>onEdit(d)} style={{padding:"3px 9px",borderRadius:5,border:"1px solid var(--border)",background:"transparent",fontSize:11,cursor:"pointer",color:"var(--ink-mid)"}}>Edit</button>
+                      <button onClick={()=>{if(window.confirm("Delete this document?"))onDelete(d.id);}} style={{padding:"3px 9px",borderRadius:5,border:"1px solid #f5c6c6",background:"transparent",fontSize:11,cursor:"pointer",color:"var(--danger)"}}>×</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── SETTINGS ── */
+function Settings(){
+  return(
+    <div style={{padding:"22px 28px",maxWidth:580,margin:"0 auto"}}>
+      <h2 style={{fontSize:20,marginBottom:18}}>Settings</h2>
+      <div style={{background:"var(--white)",border:"1px solid var(--border)",borderRadius:9,padding:18,marginBottom:14}}>
+        <div style={{fontWeight:600,fontFamily:"var(--font-display)",fontSize:14,marginBottom:10}}>Bank Details (Fixed)</div>
+        <div style={{fontSize:11,color:"var(--ink-soft)",lineHeight:1.9,background:"var(--paper)",borderRadius:7,padding:12}}>
+          <div><strong>Name:</strong> {BANK.name}</div>
+          <div>{BANK.po}</div>
+          <div><strong>Account #:</strong> {BANK.account}</div>
+          <div><strong>Bank:</strong> {BANK.bank} ({BANK.bankTel})</div>
+          <div><strong>ABA Routing #:</strong> {BANK.aba}</div>
+          <div><strong>SWIFT:</strong> {BANK.swift}</div>
+          <div><strong>Correspondent:</strong> {BANK.correspondent}</div>
+        </div>
+        <div style={{fontSize:10,color:"var(--ink-soft)",marginTop:8,fontStyle:"italic"}}>Bank details appear on all documents and cannot be changed here.</div>
+      </div>
+      <div style={{background:"var(--white)",border:"1px solid var(--border)",borderRadius:9,padding:18,marginBottom:14}}>
+        <div style={{fontWeight:600,fontFamily:"var(--font-display)",fontSize:14,marginBottom:6}}>Email Integration</div>
+        <div style={{fontSize:11,color:"var(--success)",fontWeight:500,marginBottom:8}}>✓ Resend API connected</div>
+        <div style={{fontSize:11,color:"var(--ink-soft)",lineHeight:1.7}}>
+          Verified domain: <strong>@{DOMAIN}</strong><br/>
+          You can send from <em>any</em> address at this domain (e.g. reservations@, accounts@, yash@).<br/>
+          Set the sender address per document in the Send panel.<br/>
+          CC and BCC are supported.
+        </div>
+      </div>
+      <div style={{background:"var(--gold-pale)",border:"1px solid var(--gold-border)",borderRadius:9,padding:14,fontSize:11,color:"var(--warning)",lineHeight:1.7}}>
+        <strong>Netlify Deployment:</strong> Drop the <code>index.html</code> and <code>netlify.toml</code> files into Netlify Drop at app.netlify.com/drop for instant hosting. Or connect a GitHub repo for continuous deployment.
+      </div>
+    </div>
+  );
+}
+
+/* ── APP ── */
+function App(){
+  const [tab,setTab]=useState("new");
+  const [docs,setDocs]=useState([]);
+  const [editingDoc,setEditingDoc]=useState(null);
+
+  const handleSave=(doc)=>{
+    setDocs(prev=>{
+      const idx=prev.findIndex(d=>d.id===doc.id);
+      if(idx>=0){const n=[...prev];n[idx]=doc;return n;}
+      return [...prev,doc];
+    });
+    setTab("list");
+    setEditingDoc(null);
+  };
+
+  return(
+    <div style={{display:"flex",minHeight:"100vh"}}>
+      <div className="no-print">
+        <Sidebar activeTab={tab} setActiveTab={t=>{if(t!=="new")setEditingDoc(null);setTab(t);}} docs={docs}/>
+      </div>
+      <main style={{flex:1,overflowY:"auto",background:"var(--paper)"}}>
+        {tab==="new"&&<DocEditor onSave={handleSave} initialDoc={editingDoc} key={editingDoc?.id||"new"}/>}
+        {tab==="list"&&<DocList docs={docs} onEdit={d=>{setEditingDoc(d);setTab("new");}} onDelete={id=>setDocs(prev=>prev.filter(d=>d.id!==id))} onNew={()=>{setEditingDoc(null);setTab("new");}}/>}
+        {tab==="analytics"&&<Analytics docs={docs}/>}
+        {tab==="settings"&&<Settings/>}
+      </main>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
