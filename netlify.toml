@@ -12,3 +12,8 @@
   from = "/api/send-email"
   to = "/.netlify/functions/send-email"
   status = 200
+
+[[redirects]]
+  from = "/api/public-config"
+  to = "/.netlify/functions/get-public-config"
+  status = 200

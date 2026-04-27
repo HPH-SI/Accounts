@@ -215,8 +215,14 @@ async function sendViaResend({to, cc, bcc, fromEmail, docType, docNumber, toName
   return data;
 }
 
+function publicConfigUrl(){
+  if(typeof location==="undefined"||!location.protocol)return"";
+  if(location.protocol!=="http:"&&location.protocol!=="https:")return"";
+  return location.origin + "/.netlify/functions/get-public-config";
+}
+
 /* ── SIDEBAR ── */
-function Sidebar({activeTab, setActiveTab, docs}){
+function Sidebar({activeTab, setActiveTab, docs, dbStatus}){
   const tabs=[
     {id:"new",label:"New Document",icon:"✦"},
     {id:"list",label:"Documents",icon:"≡"},
@@ -248,6 +254,14 @@ function Sidebar({activeTab, setActiveTab, docs}){
         ))}
       </nav>
       <div style={{padding:"12px 18px",borderTop:"1px solid rgba(255,255,255,0.1)"}}>
+        {dbStatus&&(
+          <div style={{color:"rgba(255,255,255,0.4)",fontSize:9,textAlign:"center",marginBottom:6,lineHeight:1.35}}>
+            {dbStatus==="loading"&&"⏳ Loading cloud…"}
+            {dbStatus==="ok"&&"☁ Supabase connected"}
+            {dbStatus==="offline"&&"○ Local only (set SUPABASE in Netlify)"}
+            {dbStatus==="error"&&"⚠ Cloud sync error"}
+          </div>
+        )}
         <div style={{color:"rgba(255,255,255,0.25)",fontSize:9,textAlign:"center"}}>v2.0 • Heritage Park Hotel</div>
       </div>
     </aside>
@@ -843,25 +857,69 @@ function App(){
   const [tab,setTab]=useState("new");
   const [docs,setDocs]=useState([]);
   const [editingDoc,setEditingDoc]=useState(null);
+  const [dbStatus,setDbStatus]=useState("loading");
+  const supabaseRef=useRef(null);
 
-  const handleSave=(doc)=>{
+  useEffect(()=>{
+    let live=true;
+    (async()=>{
+      const base=publicConfigUrl();
+      if(!base){ if(live) setDbStatus("offline"); return; }
+      try{
+        const { createClient }=await import("https://esm.sh/@supabase/supabase-js@2");
+        const r=await fetch(base);
+        const cfg=await r.json();
+        if(!cfg.configured||!cfg.supabaseAnonKey){ if(live) setDbStatus("offline"); return; }
+        const supabase=createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+        supabaseRef.current=supabase;
+        const { data, error }=await supabase.from("documents").select("id, doc_json, updated_at").order("updated_at",{ ascending:false });
+        if(error) throw error;
+        if(live && data) setDocs(data.map(row=>{
+          const id=typeof row.id==="string"?+row.id:row.id;
+          return { ...row.doc_json, id };
+        }));
+        if(live) setDbStatus("ok");
+      }catch(e){
+        console.error(e);
+        if(live) setDbStatus("error");
+      }
+    })();
+    return()=>{ live=false; };
+  },[]);
+
+  const handleSave=async (doc)=>{
     setDocs(prev=>{
       const idx=prev.findIndex(d=>d.id===doc.id);
-      if(idx>=0){const n=[...prev];n[idx]=doc;return n;}
-      return [...prev,doc];
+      if(idx>=0){ const n=[...prev]; n[idx]=doc; return n; }
+      return [...prev, doc];
     });
     setTab("list");
     setEditingDoc(null);
+    if(supabaseRef.current){
+      const { error }=await supabaseRef.current.from("documents").upsert(
+        { id: doc.id, doc_json: doc, updated_at: new Date().toISOString() },
+        { onConflict: "id" }
+      );
+      if(error) console.error("Supabase save:", error);
+    }
+  };
+
+  const handleDelete=async (id)=>{
+    setDocs(prev=>prev.filter(d=>d.id!==id));
+    if(supabaseRef.current){
+      const { error }=await supabaseRef.current.from("documents").delete().eq("id", id);
+      if(error) console.error("Supabase delete:", error);
+    }
   };
 
   return(
     <div style={{display:"flex",minHeight:"100vh"}}>
       <div className="no-print">
-        <Sidebar activeTab={tab} setActiveTab={t=>{if(t!=="new")setEditingDoc(null);setTab(t);}} docs={docs}/>
+        <Sidebar activeTab={tab} setActiveTab={t=>{if(t!=="new")setEditingDoc(null);setTab(t);}} docs={docs} dbStatus={dbStatus}/>
       </div>
       <main style={{flex:1,overflowY:"auto",background:"var(--paper)"}}>
         {tab==="new"&&<DocEditor onSave={handleSave} initialDoc={editingDoc} key={editingDoc?.id||"new"}/>}
-        {tab==="list"&&<DocList docs={docs} onEdit={d=>{setEditingDoc(d);setTab("new");}} onDelete={id=>setDocs(prev=>prev.filter(d=>d.id!==id))} onNew={()=>{setEditingDoc(null);setTab("new");}}/>}
+        {tab==="list"&&<DocList docs={docs} onEdit={d=>{setEditingDoc(d);setTab("new");}} onDelete={handleDelete} onNew={()=>{setEditingDoc(null);setTab("new");}}/>}
         {tab==="analytics"&&<Analytics docs={docs}/>}
       </main>
     </div>

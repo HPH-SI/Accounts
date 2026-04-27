@@ -18,6 +18,18 @@ Troubleshooting: if the key is set but the error persists, re-check scopes, conf
 
 **Security:** Never put a Resend API key in `index.html` or any client-side script. If a key was ever committed, **rotate it** in the Resend dashboard.
 
+## Supabase (document storage)
+
+Saved documents are stored in **PostgreSQL** via [Supabase](https://supabase.com). The browser uses the **Supabase JavaScript client** with the **anon (public) key** only. **Do not** put the direct `postgresql://…` connection string or the database user password in the app or in git—use the **anon** key from **Project Settings → API** in the Supabase dashboard.
+
+1. In the Supabase SQL editor, run the migration in **`supabase/migrations/20260427000000_documents.sql`** (creates the `documents` table and RLS policies).
+2. In Netlify: **Environment variables** (scopes including **Functions**), set:
+   - **`SUPABASE_URL`** — e.g. `https://hkjdqiuvltlidwtbghtx.supabase.co` (your project URL).
+   - **`SUPABASE_ANON_KEY`** — the **anon public** key (not the `service_role` secret for untrusted public sites; you may tighten RLS/policies later).
+3. Redeploy the site. The app loads config from `/.netlify/functions/get-public-config` and syncs the document list. Without these variables, the app stays **local only** (in-memory until refresh).
+
+**Local dev:** use `netlify dev` so both email and public-config functions run; set the same variables in a root `.env` (gitignored) if needed.
+
 ## Local use
 
 Open `index.html` directly, or run a static server in this folder (recommended for Babel in-browser):
