@@ -6,6 +6,7 @@
 <title>Heritage Park Hotel – Invoice Manager</title>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -899,16 +900,24 @@ function App(){
       if(!base){ if(live){ setDbStatus("offline"); setDbErrorMsg(""); } return; }
       try{
         if(live) setDbErrorMsg("");
-        const { createClient }=await import("https://esm.sh/@supabase/supabase-js@2");
+        /* UMD from script tag — dynamic import() + Babel can emit require() and break in-browser. */
+        const supLib=typeof window!=="undefined"&&window.supabase;
+        if(!supLib||typeof supLib.createClient!=="function"){
+          if(live){
+            setDbErrorMsg("Supabase library not loaded");
+            setDbStatus("error");
+          }
+          return;
+        }
         const cfg=await fetchPublicConfigJson();
         if(!cfg){
           if(live) setDbStatus("offline");
           return;
         }
         if(!cfg.configured||!cfg.supabaseAnonKey){ if(live) setDbStatus("offline"); return; }
-        const supabase=createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
-        supabaseRef.current=supabase;
-        const { data, error }=await supabase.from("documents").select("id, doc_json, updated_at").order("updated_at",{ ascending:false });
+        const supa=supLib.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+        supabaseRef.current=supa;
+        const { data, error }=await supa.from("documents").select("id, doc_json, updated_at").order("updated_at",{ ascending:false });
         if(error){
           console.error("Supabase documents:",error);
           if(live){
@@ -921,7 +930,7 @@ function App(){
         if(live) setDbStatus("ok");
         if(!live) return;
         try{
-          const ch=supabase
+          const ch=supa
             .channel("documents-realtime")
             .on("postgres_changes",{ event:"*", schema:"public", table:"documents" },(payload)=>{
               if(!live) return;
