@@ -221,8 +221,25 @@ function publicConfigUrl(){
   return location.origin + "/.netlify/functions/get-public-config";
 }
 
+/* Try both Netlify paths (function URL + /api/redirect) so a deploy mismatch does not 404. */
+async function fetchPublicConfigJson(){
+  const paths=["/.netlify/functions/get-public-config","/api/public-config"];
+  for(const p of paths){
+    const u=location.origin+p;
+    try{
+      const r=await fetch(u);
+      if(!r.ok) continue;
+      const t=await r.text();
+      let cfg;
+      try{ cfg=JSON.parse(t);}catch{ continue; }
+      if(cfg && typeof cfg==="object") return cfg;
+    }catch(e){ console.warn("get-public-config",p,e); }
+  }
+  return null;
+}
+
 /* ── SIDEBAR ── */
-function Sidebar({activeTab, setActiveTab, docs, dbStatus}){
+function Sidebar({activeTab, setActiveTab, docs, dbStatus, dbErrorMsg}){
   const tabs=[
     {id:"new",label:"New Document",icon:"✦"},
     {id:"list",label:"Documents",icon:"≡"},
@@ -259,7 +276,12 @@ function Sidebar({activeTab, setActiveTab, docs, dbStatus}){
             {dbStatus==="loading"&&"⏳ Loading cloud…"}
             {dbStatus==="ok"&&"☁ Supabase connected"}
             {dbStatus==="offline"&&"○ Local only (set SUPABASE in Netlify)"}
-            {dbStatus==="error"&&"⚠ Cloud sync error"}
+            {dbStatus==="error"&&(
+              <>
+                ⚠ Cloud sync error
+                {dbErrorMsg?<div style={{marginTop:4,opacity:0.85}} title={String(dbErrorMsg)}>{String(dbErrorMsg).slice(0,120)}{String(dbErrorMsg).length>120?"…":""}</div>:null}
+              </>
+            )}
           </div>
         )}
         <div style={{color:"rgba(255,255,255,0.25)",fontSize:9,textAlign:"center"}}>v2.0 • Heritage Park Hotel</div>
@@ -858,33 +880,89 @@ function App(){
   const [docs,setDocs]=useState([]);
   const [editingDoc,setEditingDoc]=useState(null);
   const [dbStatus,setDbStatus]=useState("loading");
+  const [dbErrorMsg,setDbErrorMsg]=useState("");
   const supabaseRef=useRef(null);
+  const realtimeChannelRef=useRef(null);
+
+  const rowToDoc=(row)=>{
+    if(!row) return null;
+    const id=typeof row.id==="string"?+row.id:row.id;
+    const j=row.doc_json;
+    if(j==null) return null;
+    return{ ...j, id };
+  };
 
   useEffect(()=>{
     let live=true;
     (async()=>{
       const base=publicConfigUrl();
-      if(!base){ if(live) setDbStatus("offline"); return; }
+      if(!base){ if(live){ setDbStatus("offline"); setDbErrorMsg(""); } return; }
       try{
+        if(live) setDbErrorMsg("");
         const { createClient }=await import("https://esm.sh/@supabase/supabase-js@2");
-        const r=await fetch(base);
-        const cfg=await r.json();
+        const cfg=await fetchPublicConfigJson();
+        if(!cfg){
+          if(live) setDbStatus("offline");
+          return;
+        }
         if(!cfg.configured||!cfg.supabaseAnonKey){ if(live) setDbStatus("offline"); return; }
         const supabase=createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
         supabaseRef.current=supabase;
         const { data, error }=await supabase.from("documents").select("id, doc_json, updated_at").order("updated_at",{ ascending:false });
-        if(error) throw error;
-        if(live && data) setDocs(data.map(row=>{
-          const id=typeof row.id==="string"?+row.id:row.id;
-          return { ...row.doc_json, id };
-        }));
+        if(error){
+          console.error("Supabase documents:",error);
+          if(live){
+            setDbErrorMsg(error.message||String(error));
+            setDbStatus("error");
+          }
+          return;
+        }
+        if(live && data) setDocs(data.map(rowToDoc).filter(Boolean));
         if(live) setDbStatus("ok");
+        if(!live) return;
+        try{
+          const ch=supabase
+            .channel("documents-realtime")
+            .on("postgres_changes",{ event:"*", schema:"public", table:"documents" },(payload)=>{
+              if(!live) return;
+              setDocs((prev)=>{
+                if(payload.eventType==="DELETE"){
+                  const raw=payload.old && payload.old.id;
+                  if(raw==null) return prev;
+                  const id=typeof raw==="string"?+raw:raw;
+                  return prev.filter(d=>d.id!==id);
+                }
+                const doc=rowToDoc(payload.new);
+                if(!doc) return prev;
+                const i=prev.findIndex(d=>d.id===doc.id);
+                if(i>=0){
+                  const n=[...prev];
+                  n[i]=doc;
+                  return n;
+                }
+                return[doc,...prev];
+              });
+            })
+            .subscribe();
+          realtimeChannelRef.current=ch;
+        }catch(rtErr){
+          console.warn("Realtime unavailable (list still works):",rtErr);
+        }
       }catch(e){
         console.error(e);
-        if(live) setDbStatus("error");
+        if(live){
+          setDbErrorMsg(e && e.message?e.message:String(e));
+          setDbStatus("error");
+        }
       }
     })();
-    return()=>{ live=false; };
+    return()=>{
+      live=false;
+      const sb=supabaseRef.current;
+      const ch=realtimeChannelRef.current;
+      realtimeChannelRef.current=null;
+      if(sb && ch) sb.removeChannel(ch);
+    };
   },[]);
 
   const handleSave=async (doc)=>{
@@ -915,7 +993,7 @@ function App(){
   return(
     <div style={{display:"flex",minHeight:"100vh"}}>
       <div className="no-print">
-        <Sidebar activeTab={tab} setActiveTab={t=>{if(t!=="new")setEditingDoc(null);setTab(t);}} docs={docs} dbStatus={dbStatus}/>
+        <Sidebar activeTab={tab} setActiveTab={t=>{if(t!=="new")setEditingDoc(null);setTab(t);}} docs={docs} dbStatus={dbStatus} dbErrorMsg={dbErrorMsg}/>
       </div>
       <main style={{flex:1,overflowY:"auto",background:"var(--paper)"}}>
         {tab==="new"&&<DocEditor onSave={handleSave} initialDoc={editingDoc} key={editingDoc?.id||"new"}/>}
