@@ -153,6 +153,12 @@ async function generatePdfBase64(docRef, docNumber, docType){
 }
 
 /* ── EMAIL (Resend via same-origin function — direct api.resend.com calls fail: CORS / “Failed to fetch”) ── */
+/* Split a comma- or semicolon-separated address string into a trimmed array, ignoring blanks. */
+function parseEmails(str){
+  if(!str||!str.trim()) return [];
+  return str.split(/[,;]+/).map(e=>e.trim()).filter(Boolean);
+}
+
 function getEmailApiUrl(){
   if(typeof window==="undefined") return "";
   if(window.__HPH_EMAIL_SEND_URL__) return window.__HPH_EMAIL_SEND_URL__;
@@ -162,19 +168,22 @@ function getEmailApiUrl(){
   return "";
 }
 async function sendViaResend({to, cc, bcc, fromEmail, docType, docNumber, toName, company, subtotal, currency, htmlBody, pdfBase64, pdfFilename}){
+  const toList  = parseEmails(to);
+  const ccList  = parseEmails(cc);
+  const bccList = parseEmails(bcc);
   const subject = `${docType}${docNumber?" #"+docNumber:""} from Heritage Park Hotel`;
   const body = {
     from: fromEmail||DEFAULT_FROM,
-    to: [to],
-    ...(cc&&cc.trim()?{cc:[cc]}:{}),
-    ...(bcc&&bcc.trim()?{bcc:[bcc]}:{}),
+    to: toList,
+    ...(ccList.length ?{cc:ccList}:{}),
+    ...(bccList.length?{bcc:bccList}:{}),
     subject,
     html: htmlBody||`<p>Dear ${toName||"Client"},</p><p>Please find attached your ${docType}${docNumber?" #"+docNumber:""} from Heritage Park Hotel.</p><p>Total: ${currency} ${fmt(subtotal)}</p><br/><p>Best regards,<br/>Heritage Park Hotel<br/>Honiara, Solomon Islands</p>`,
     ...(pdfBase64 ? { attachments: [{ filename: pdfFilename || "document.pdf", content: pdfBase64 }] } : {})
   };
   const openMailto = () => {
     const plain = `Dear ${toName||"Client"},\n\nPlease find attached your ${docType}${docNumber?" #"+docNumber:""} from Heritage Park Hotel.\n\nTotal: ${currency} ${fmt(subtotal)}\n\nBest regards,\nHeritage Park Hotel\nHoniara, Solomon Islands`;
-    window.location.href = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(plain)}`;
+    window.location.href = `mailto:${encodeURIComponent(toList.join(","))}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(plain)}`;
   };
   const url = getEmailApiUrl();
   if(!url) {
@@ -559,7 +568,7 @@ function DocEditor({onSave, initialDoc}){
   };
 
   const handleEmail=async()=>{
-    if(!emailTo.trim()){setEmailError("Please enter a recipient email");return;}
+    if(!parseEmails(emailTo).length){setEmailError("Please enter at least one recipient email");return;}
     setEmailStatus("sending"); setEmailError("");
     try{
       const safeName = (docNumber||docType||"document").replace(/[^a-zA-Z0-9_-]/g,"_");
@@ -670,15 +679,24 @@ function DocEditor({onSave, initialDoc}){
           </div>
           <div style={{marginBottom:8}}>
             <EditorLabelSm>To</EditorLabelSm>
-            <input type="email" value={emailTo} onChange={e=>setEmailTo(e.target.value)} placeholder="client@example.com"/>
+            <input value={emailTo} onChange={e=>setEmailTo(e.target.value)} placeholder="client@example.com, other@example.com"/>
+            <div style={{fontSize:10,color:"var(--ink-soft)",marginTop:3}}>Separate multiple addresses with a comma</div>
           </div>
           <button onClick={()=>setShowCCBCC(!showCCBCC)} style={{fontSize:11,color:"var(--accent)",background:"none",border:"none",cursor:"pointer",padding:"0 0 8px",display:"block"}}>
             {showCCBCC?"▾":"▸"} CC / BCC
           </button>
           {showCCBCC&&(
             <div style={{display:"grid",gap:8,marginBottom:8}}>
-              <div><EditorLabelSm>CC</EditorLabelSm><input type="email" value={emailCC} onChange={e=>setEmailCC(e.target.value)}/></div>
-              <div><EditorLabelSm>BCC</EditorLabelSm><input type="email" value={emailBCC} onChange={e=>setEmailBCC(e.target.value)}/></div>
+              <div>
+                <EditorLabelSm>CC</EditorLabelSm>
+                <input value={emailCC} onChange={e=>setEmailCC(e.target.value)} placeholder="cc@example.com, cc2@example.com"/>
+                <div style={{fontSize:10,color:"var(--ink-soft)",marginTop:3}}>Separate multiple addresses with a comma</div>
+              </div>
+              <div>
+                <EditorLabelSm>BCC</EditorLabelSm>
+                <input value={emailBCC} onChange={e=>setEmailBCC(e.target.value)} placeholder="bcc@example.com, bcc2@example.com"/>
+                <div style={{fontSize:10,color:"var(--ink-soft)",marginTop:3}}>Separate multiple addresses with a comma</div>
+              </div>
             </div>
           )}
           {emailError&&<div style={{fontSize:11,color:"var(--danger)",marginBottom:6,padding:"5px 8px",background:"#fef2f2",borderRadius:5}}>{emailError}</div>}
