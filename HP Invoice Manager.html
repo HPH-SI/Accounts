@@ -109,6 +109,31 @@ function fmtDate(d){
   return `${months[+m-1]} ${+day}, ${y}`;
 }
 
+/* Lines before the first "- ..." bullet are intro text; bullet lines start with "- ". */
+function parseNotesForPreview(notes){
+  if(!notes||!notes.trim()) return {intro:"",bullets:[],legacy:false};
+  const lines = notes.split(/\r?\n/);
+  const bulletStart = lines.findIndex(l=>/^\s*-\s*.*/.test(l));
+  if(bulletStart===-1){
+    return {intro:notes.trim(),bullets:[],legacy:true};
+  }
+  const intro = lines.slice(0,bulletStart).join("\n").trim();
+  const bullets=[];
+  for(let i=bulletStart;i<lines.length;i++){
+    let t=lines[i].trim();
+    if(!t) continue;
+    const m=t.match(/^-\s*(.*)$/);
+    if(m){
+      bullets.push(m[1]!=null?m[1].trim():"");
+      continue;
+    }
+    if(bullets.length){
+      bullets[bullets.length-1]=(bullets[bullets.length-1]?bullets[bullets.length-1]+" ":"")+t;
+    }
+  }
+  return {intro,bullets,legacy:false};
+}
+
 /* ── PDF DOWNLOAD ── */
 async function downloadPDF(docRef, docNumber, docType){
   const el = docRef.current;
@@ -449,12 +474,29 @@ const DocPreview = React.forwardRef(function DocPreview({
         </div>
       )}
 
-      {/* Notes */}
-      {notes&&(
-        <div style={{background:"var(--paper)",borderLeft:"3px solid var(--gold)",padding:"8px 12px",borderRadius:"0 5px 5px 0",fontSize:11,color:"var(--ink-mid)",marginBottom:14,fontStyle:"italic",lineHeight:1.6}}>
-          {notes}
-        </div>
-      )}
+      {/* Notes — intro paragraph + "-" bullet lines edited in textarea */}
+      {notes&&notes.trim()?(()=>{
+        const {intro,bullets,legacy}=parseNotesForPreview(notes);
+        const box={
+          marginBottom:14,
+          padding:"10px 14px",
+          borderRadius:6,
+          border:"1px solid var(--gold-border)",
+          background:"linear-gradient(to bottom,var(--gold-pale) 0%,#fff 72%)",
+          fontSize:11,
+          color:"var(--ink-mid)",
+          lineHeight:1.55,
+        };
+        if(legacy){
+          return(<div style={{...box,fontStyle:"italic"}}>{notes}</div>);
+        }
+        return(
+          <div style={box}>
+            {intro?<div style={{fontWeight:600,color:"var(--ink)",marginBottom:bullets.length?8:0,fontFamily:"var(--font-body)",whiteSpace:"pre-wrap"}}>{intro}</div>:null}
+            {bullets.length>0?<ul style={{margin:0,paddingLeft:18,fontStyle:"normal",listStyleType:"disc",color:"var(--ink)"}}>{bullets.map((b,i)=><li key={i} style={{marginBottom:3}}>{b}</li>)}</ul>:null}
+          </div>
+        );
+      })():null}
 
       {/* Surcharge note */}
       <div style={{fontSize:10,color:"var(--ink-soft)",marginBottom:10,fontStyle:"italic"}}>
@@ -528,7 +570,7 @@ function DocEditor({onSave, initialDoc}){
   const [rates,setRates]=useState(initialDoc?.rates||{...defaultRates});
   const [deposit,setDeposit]=useState(initialDoc?.deposit||0);
   const [deposit2,setDeposit2]=useState(initialDoc?.deposit2||0);
-  const [notes,setNotes]=useState(initialDoc?.notes||"The above rate is inclusive of taxes, 1.5GB complimentary Wi-Fi & Bottled water every day & full breakfast buffet.");
+  const [notes,setNotes]=useState(initialDoc?.notes||'The rate has the following inclusions:\n- All currently applicable taxes\n- Full buffet breakfast\n- Unlimited wifi\n- Bottled drinking water\n- Daily newspapers');
   const [eventLabel,setEventLabel]=useState(initialDoc?.eventLabel||"Accommodation");
   const [salesperson,setSalesperson]=useState(initialDoc?.salesperson||"");
   const [items,setItems]=useState(initialDoc?.items||[emptyLine()]);
@@ -663,8 +705,17 @@ function DocEditor({onSave, initialDoc}){
         </EditorCard>
 
         <EditorCard mb={12}>
-          <EditorLabelSm>Notes / Footer</EditorLabelSm>
-          <textarea value={notes} rows={3} onChange={e=>setNotes(e.target.value)} style={{resize:"vertical",fontSize:12,lineHeight:1.5}}/>
+          <EditorLabelSm>Inclusions — notes</EditorLabelSm>
+          <textarea
+            value={notes}
+            rows={8}
+            placeholder={"The rate has...\n- First item\n- Second item"}
+            onChange={e=>setNotes(e.target.value)}
+            style={{resize:"vertical",fontSize:12,lineHeight:1.55,fontFamily:"var(--font-body)"}}
+          />
+          <div style={{fontSize:10,color:"var(--ink-soft)",marginTop:6,lineHeight:1.45}}>
+            Lines starting with <code>-</code> (dash + space) show as bullets. Add or remove bullet lines freely; text above the first dash is shown as an intro paragraph.
+          </div>
         </EditorCard>
 
         {/* Email */}
