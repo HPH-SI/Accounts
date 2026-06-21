@@ -432,13 +432,14 @@ function GroupRow({group, onChange, onRemove, isPrint}){
 /* ── DOCUMENT PREVIEW (used for display + PDF capture) ── */
 const DocPreview = React.forwardRef(function DocPreview({
   docType,docNumber,docDate,toName,company,phone,clientEmail,
-  currency,rates,items,subtotal,deposit,deposit2,balance,notes,
+  currency,rates,items,subtotal,deposit,deposit2,tac,tacType,balance,notes,
   eventLabel,salesperson,
   onUpdateItem,onRemoveItem,onAddLine,onAddGroup,
   isPrint
 }, ref){
   const lines = items.filter(i=>i.type==="line");
   const totalDeposit=(+deposit)+(+deposit2);
+  const tacAmt=tacType==="pct"?subtotal*(+tac)/100:+(+tac);
 
   const displayAmt=(sbd)=>{
     if(currency==="SBD") return fmt(sbd);
@@ -553,6 +554,7 @@ const DocPreview = React.forwardRef(function DocPreview({
         <div style={{width:260,borderTop:"1px solid var(--border)",paddingTop:10}}>
           {[
             {label:"Subtotal",val:subtotal,isDeposit:false,isBold:false},
+            ...(tacAmt>0?[{label:`TAC${tacType==="pct"?" ("+tac+"%)":""}`,val:tacAmt,isDeposit:true,isTac:true}]:[]),
             ...(+deposit?[{label:"Deposit",val:+deposit,isDeposit:true}]:[]),
             ...(+deposit2?[{label:"",val:+deposit2,isDeposit:true}]:[]),
             {label:"SBD Total",val:balance,isDeposit:false,isBold:true,isLast:true},
@@ -615,6 +617,8 @@ function DocEditor({onSave, initialDoc}){
   const [rates,setRates]=useState(initialDoc?.rates||{...defaultRates});
   const [deposit,setDeposit]=useState(initialDoc?.deposit||0);
   const [deposit2,setDeposit2]=useState(initialDoc?.deposit2||0);
+  const [tac,setTac]=useState(initialDoc?.tac||0);
+  const [tacType,setTacType]=useState(initialDoc?.tacType||"pct");
   const [notes,setNotes]=useState(initialDoc?.notes||'The rate has the following inclusions:\n- All currently applicable taxes\n- Full buffet breakfast\n- Unlimited wifi\n- Bottled drinking water\n- Daily newspapers');
   const [eventLabel,setEventLabel]=useState(initialDoc?.eventLabel||"Accommodation");
   const [salesperson,setSalesperson]=useState(initialDoc?.salesperson||"");
@@ -634,12 +638,13 @@ function DocEditor({onSave, initialDoc}){
   const lines=items.filter(i=>i.type==="line");
   const subtotal=lines.reduce((s,l)=>s+l.qty*l.days*l.unitPrice,0);
   const totalDeposit=(+deposit)+(+deposit2);
-  const balance=subtotal-totalDeposit;
+  const tacAmt=tacType==="pct"?subtotal*(+tac)/100:+(+tac);
+  const balance=subtotal-tacAmt-totalDeposit;
 
   const docObj={
     id:initialDoc?.id||Date.now(),
     docType,docNumber,docDate,toName,company,phone,clientEmail,
-    currency,rates,deposit,deposit2,notes,eventLabel,salesperson,
+    currency,rates,deposit,deposit2,tac,tacType,notes,eventLabel,salesperson,
     items,subtotal,balance
   };
 
@@ -743,9 +748,34 @@ function DocEditor({onSave, initialDoc}){
         </EditorCard>
 
         <EditorCard title="Deposits Received" mb={12}>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
             <div><EditorLabelSm>Deposit 1 (SBD)</EditorLabelSm><input type="number" value={deposit} onChange={e=>setDeposit(+e.target.value)}/></div>
             <div><EditorLabelSm>Deposit 2 (SBD)</EditorLabelSm><input type="number" value={deposit2} onChange={e=>setDeposit2(+e.target.value)}/></div>
+          </div>
+          <div>
+            <EditorLabelSm>TAC — Travel Agent Commission</EditorLabelSm>
+            <div style={{display:"flex",gap:6,alignItems:"center"}}>
+              <div style={{display:"flex",border:"1px solid var(--border)",borderRadius:6,overflow:"hidden",flexShrink:0}}>
+                <button onClick={()=>setTacType("pct")} style={{
+                  padding:"6px 10px",border:"none",fontSize:11,cursor:"pointer",
+                  background:tacType==="pct"?"var(--accent)":"var(--white)",
+                  color:tacType==="pct"?"#fff":"var(--ink-mid)",fontFamily:"var(--font-body)"
+                }}>%</button>
+                <button onClick={()=>setTacType("amt")} style={{
+                  padding:"6px 10px",border:"none",fontSize:11,cursor:"pointer",
+                  background:tacType==="amt"?"var(--accent)":"var(--white)",
+                  color:tacType==="amt"?"#fff":"var(--ink-mid)",fontFamily:"var(--font-body)",
+                  borderLeft:"1px solid var(--border)"
+                }}>SBD</button>
+              </div>
+              <input type="number" min="0" step={tacType==="pct"?"0.01":"1"} value={tac}
+                onChange={e=>setTac(+e.target.value)}
+                placeholder={tacType==="pct"?"e.g. 10":"e.g. 500"}
+                style={{flex:1}}/>
+              {tacAmt>0&&<span style={{fontSize:11,color:"var(--success)",whiteSpace:"nowrap",flexShrink:0}}>
+                = SBD {fmt(tacAmt)}
+              </span>}
+            </div>
           </div>
         </EditorCard>
 
@@ -836,7 +866,7 @@ function DocEditor({onSave, initialDoc}){
             docType={docType} docNumber={docNumber} docDate={docDate}
             toName={toName} company={company} phone={phone} clientEmail={clientEmail}
             currency={currency} rates={rates} items={items}
-            subtotal={subtotal} deposit={deposit} deposit2={deposit2} balance={balance}
+            subtotal={subtotal} deposit={deposit} deposit2={deposit2} tac={tac} tacType={tacType} balance={balance}
             notes={notes} eventLabel={eventLabel} salesperson={salesperson}
             onUpdateItem={updateItem} onRemoveItem={removeItem}
             onAddLine={addLine} onAddGroup={addGroup}
@@ -851,7 +881,7 @@ function DocEditor({onSave, initialDoc}){
           docType={docType} docNumber={docNumber} docDate={docDate}
           toName={toName} company={company} phone={phone} clientEmail={clientEmail}
           currency={currency} rates={rates} items={items}
-          subtotal={subtotal} deposit={deposit} deposit2={deposit2} balance={balance}
+          subtotal={subtotal} deposit={deposit} deposit2={deposit2} tac={tac} tacType={tacType} balance={balance}
           notes={notes} eventLabel={eventLabel} salesperson={salesperson}
           onUpdateItem={()=>{}} onRemoveItem={()=>{}}
           onAddLine={()=>{}} onAddGroup={()=>{}}
