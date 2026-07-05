@@ -371,7 +371,7 @@ function Sidebar({activeTab, setActiveTab, docs, dbStatus, dbErrorMsg}){
 }
 
 /* ── LINE ROW ── */
-function LineRow({line, onChange, onRemove, currency, rates, isPrint}){
+function LineRow({line, onChange, onRemove, currency, rates, isPrint, dragHandleProps, isDragOver}){
   const total = line.qty * line.days * line.unitPrice;
   const displayAmt = (sbd)=>{
     if(currency==="SBD") return fmt(sbd);
@@ -389,7 +389,14 @@ function LineRow({line, onChange, onRemove, currency, rates, isPrint}){
     );
   }
   return(
-    <tr>
+    <tr style={{boxShadow:isDragOver?"inset 0 2px 0 var(--accent)":"none",transition:"box-shadow .1s"}}>
+      <td style={{padding:"5px 3px",width:28,textAlign:"center"}}>
+        <span {...dragHandleProps} title="Drag to reorder"
+          style={{display:"inline-block",cursor:"grab",color:"var(--border)",fontSize:14,lineHeight:1,userSelect:"none",padding:"0 2px"}}
+          onMouseDown={e=>e.currentTarget.style.cursor="grabbing"}
+          onMouseUp={e=>e.currentTarget.style.cursor="grab"}
+        >⠿</span>
+      </td>
       <td style={{padding:"5px 3px"}}><input type="number" min="1" value={line.qty} style={{width:46,textAlign:"center",fontSize:12}} onChange={e=>onChange({...line,qty:+e.target.value})}/></td>
       <td style={{padding:"5px 3px"}}><input value={line.description} placeholder="Description…" style={{fontSize:12}} onChange={e=>onChange({...line,description:e.target.value})}/></td>
       <td style={{padding:"5px 3px"}}><input type="number" min="0" value={line.days} style={{width:46,textAlign:"center",fontSize:12}} onChange={e=>onChange({...line,days:+e.target.value})}/></td>
@@ -401,7 +408,7 @@ function LineRow({line, onChange, onRemove, currency, rates, isPrint}){
 }
 
 /* ── GROUP ROW ── */
-function GroupRow({group, onChange, onRemove, isPrint}){
+function GroupRow({group, onChange, onRemove, isPrint, dragHandleProps, isDragOver}){
   if(isPrint){
     return(
       <tr>
@@ -412,7 +419,12 @@ function GroupRow({group, onChange, onRemove, isPrint}){
     );
   }
   return(
-    <tr>
+    <tr style={{boxShadow:isDragOver?"inset 0 2px 0 var(--accent)":"none",transition:"box-shadow .1s"}}>
+      <td style={{padding:"10px 3px 3px",width:28,textAlign:"center",verticalAlign:"middle"}}>
+        <span {...dragHandleProps} title="Drag to reorder"
+          style={{display:"inline-block",cursor:"grab",color:"var(--border)",fontSize:14,lineHeight:1,userSelect:"none",padding:"0 2px"}}
+        >⠿</span>
+      </td>
       <td colSpan={6} style={{padding:"10px 3px 3px"}}>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           <div style={{height:1,flex:1,background:"var(--border)"}}/>
@@ -434,12 +446,40 @@ const DocPreview = React.forwardRef(function DocPreview({
   docType,docNumber,docDate,toName,company,phone,clientEmail,
   currency,rates,items,subtotal,deposit,deposit2,tac,tacType,balance,notes,
   eventLabel,salesperson,
-  onUpdateItem,onRemoveItem,onAddLine,onAddGroup,
+  onUpdateItem,onRemoveItem,onAddLine,onAddGroup,onReorderItems,
   isPrint
 }, ref){
   const lines = items.filter(i=>i.type==="line");
   const totalDeposit=(+deposit)+(+deposit2);
   const tacAmt=tacType==="pct"?subtotal*(+tac)/100:+(+tac);
+
+  /* ── Drag-and-drop reorder ── */
+  const dragId=useRef(null);
+  const [dragOverId,setDragOverId]=useState(null);
+
+  const handleDragStart=(e,id)=>{
+    dragId.current=id;
+    e.dataTransfer.effectAllowed="move";
+  };
+  const handleDragOver=(e,id)=>{
+    e.preventDefault();
+    e.dataTransfer.dropEffect="move";
+    if(id!==dragOverId) setDragOverId(id);
+  };
+  const handleDrop=(e,targetId)=>{
+    e.preventDefault();
+    if(!dragId.current||dragId.current===targetId){setDragOverId(null);return;}
+    const from=items.findIndex(i=>i.id===dragId.current);
+    const to=items.findIndex(i=>i.id===targetId);
+    if(from<0||to<0){setDragOverId(null);return;}
+    const next=[...items];
+    const [moved]=next.splice(from,1);
+    next.splice(to,0,moved);
+    onReorderItems&&onReorderItems(next);
+    dragId.current=null;
+    setDragOverId(null);
+  };
+  const handleDragEnd=()=>{dragId.current=null;setDragOverId(null);};
 
   const displayAmt=(sbd)=>{
     if(currency==="SBD") return fmt(sbd);
@@ -491,6 +531,7 @@ const DocPreview = React.forwardRef(function DocPreview({
       <table style={{marginBottom:8,fontSize:12}}>
         <thead>
           <tr style={{borderBottom:"2px solid var(--accent)"}}>
+            {!isPrint&&<th style={{width:28}}></th>}
             <th style={{padding:"5px 6px",width:44,textAlign:"center"}}>QTY</th>
             <th style={{padding:"5px 6px",textAlign:"left"}}>Description</th>
             <th style={{padding:"5px 6px",width:50,textAlign:"center"}}>Day</th>
@@ -500,15 +541,25 @@ const DocPreview = React.forwardRef(function DocPreview({
           </tr>
         </thead>
         <tbody>
-          {items.map(item=>(
-            item.type==="group"
+          {items.map(item=>{
+            const dragHandleProps=!isPrint?{
+              draggable:true,
+              onDragStart:(e)=>handleDragStart(e,item.id),
+              onDragOver:(e)=>handleDragOver(e,item.id),
+              onDrop:(e)=>handleDrop(e,item.id),
+              onDragEnd:handleDragEnd,
+            }:{};
+            const isDragOver=dragOverId===item.id;
+            return item.type==="group"
               ?<GroupRow key={item.id} group={item} isPrint={isPrint}
                   onChange={v=>onUpdateItem&&onUpdateItem(item.id,v)}
-                  onRemove={()=>onRemoveItem&&onRemoveItem(item.id)}/>
+                  onRemove={()=>onRemoveItem&&onRemoveItem(item.id)}
+                  dragHandleProps={dragHandleProps} isDragOver={isDragOver}/>
               :<LineRow key={item.id} line={item} currency={currency} rates={rates} isPrint={isPrint}
                   onChange={v=>onUpdateItem&&onUpdateItem(item.id,v)}
-                  onRemove={()=>onRemoveItem&&onRemoveItem(item.id)}/>
-          ))}
+                  onRemove={()=>onRemoveItem&&onRemoveItem(item.id)}
+                  dragHandleProps={dragHandleProps} isDragOver={isDragOver}/>;
+          })}
         </tbody>
       </table>
 
@@ -686,6 +737,7 @@ function DocEditor({onSave, initialDoc}){
 
   const updateItem=(id,val)=>setItems(prev=>prev.map(i=>i.id===id?val:i));
   const removeItem=(id)=>setItems(prev=>prev.filter(i=>i.id!==id));
+  const reorderItems=(newItems)=>setItems(newItems);
   const addLine=()=>setItems(prev=>[...prev,emptyLine()]);
   const addGroup=()=>setItems(prev=>[...prev,emptyGroup("Group Heading")]);
 
@@ -868,7 +920,7 @@ function DocEditor({onSave, initialDoc}){
             currency={currency} rates={rates} items={items}
             subtotal={subtotal} deposit={deposit} deposit2={deposit2} tac={tac} tacType={tacType} balance={balance}
             notes={notes} eventLabel={eventLabel} salesperson={salesperson}
-            onUpdateItem={updateItem} onRemoveItem={removeItem}
+            onUpdateItem={updateItem} onRemoveItem={removeItem} onReorderItems={reorderItems}
             onAddLine={addLine} onAddGroup={addGroup}
             isPrint={false}
           />
