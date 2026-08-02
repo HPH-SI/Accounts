@@ -134,8 +134,8 @@ const HOTEL = {
 };
 
 const DOC_TYPES = ["Quotation","Proforma Invoice","Invoice","Credit Note"];
-const CURRENCIES = ["SBD","USD","NZD","FJD"];
-const defaultRates = {USD:0.118, NZD:0.197, FJD:0.261};
+const CURRENCIES = ["SBD","USD","NZD","FJD","GBP"];
+const defaultRates = {USD:0.118, NZD:0.197, FJD:0.261, GBP:0.093};
 
 const emptyLine = ()=>({id:Date.now()+Math.random(),type:"line",qty:1,description:"",days:1,unitPrice:0});
 const emptyGroup = (label="")=>({id:Date.now()+Math.random(),type:"group",label});
@@ -679,7 +679,7 @@ function DocEditor({onSave, initialDoc}){
   const [phone,setPhone]=useState(initialDoc?.phone||"");
   const [clientEmail,setClientEmail]=useState(initialDoc?.clientEmail||"");
   const [currency,setCurrency]=useState(initialDoc?.currency||"SBD");
-  const [rates,setRates]=useState(initialDoc?.rates||{...defaultRates});
+  const [rates,setRates]=useState({...defaultRates,...(initialDoc?.rates||{})});
   const [deposit,setDeposit]=useState(initialDoc?.deposit||0);
   const [deposit2,setDeposit2]=useState(initialDoc?.deposit2||0);
   const [tac,setTac]=useState(initialDoc?.tac||0);
