@@ -154,6 +154,14 @@ function fmtDate(d){
   return `${months[+m-1]} ${+day}, ${y}`;
 }
 
+/* Compact form for tight spaces such as the totals column: "27 Jun 26". */
+function fmtDateShort(d){
+  if(!d) return "";
+  const [y,m,day]=d.split("-");
+  const months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return `${+day} ${months[+m-1]} ${String(y).slice(2)}`;
+}
+
 /* Add n days to a yyyy-mm-dd string, returning the same format. */
 function addDays(dateStr,n){
   if(!dateStr) return "";
@@ -191,7 +199,19 @@ function signedBalance(d){
   if(isCreditNote(d)) return -Math.abs(+d.balance||0);
   return 0;
 }
-const depositsOf = (d)=>(+d.deposit||0)+(+d.deposit2||0);
+/* Deposits began as two fixed fields (deposit/deposit2). Documents saved before
+   the switch to an unlimited list still carry that shape, so both normalise to
+   one array on read and nothing has to be migrated in the database. */
+const emptyDeposit=()=>({id:Date.now()+Math.random(),amount:0,date:"",note:""});
+function depositList(d){
+  if(!d) return [];
+  if(Array.isArray(d.deposits)) return d.deposits;
+  const out=[];
+  if(+d.deposit)  out.push({id:"legacy-1",amount:+d.deposit, date:"",note:""});
+  if(+d.deposit2) out.push({id:"legacy-2",amount:+d.deposit2,date:"",note:""});
+  return out;
+}
+const depositsOf = (d)=>depositList(d).reduce((s,x)=>s+(+x.amount||0),0);
 
 /* Payment status is derived from the figures on the document rather than stored,
    so it can never drift out of sync with the amounts staff actually entered. */
@@ -525,13 +545,14 @@ function GroupRow({group, onChange, onRemove, isPrint, dragHandleProps, rowDragP
 /* ── DOCUMENT PREVIEW (used for display + PDF capture) ── */
 const DocPreview = React.forwardRef(function DocPreview({
   docType,docNumber,docDate,dueDate,toName,company,phone,clientEmail,
-  currency,rates,items,subtotal,deposit,deposit2,tac,tacType,balance,notes,
+  currency,rates,items,subtotal,deposits,tac,tacType,balance,notes,
   eventLabel,salesperson,
   onUpdateItem,onRemoveItem,onAddLine,onAddGroup,onReorderItems,
   isPrint
 }, ref){
   const lines = items.filter(i=>i.type==="line");
-  const totalDeposit=(+deposit)+(+deposit2);
+  const depositRows=(deposits||[]).filter(d=>+d.amount);
+  const totalDeposit=depositRows.reduce((s,d)=>s+(+d.amount||0),0);
   const tacAmt=tacType==="pct"?subtotal*(+tac)/100:+(+tac);
 
   /* ── Drag-and-drop reorder ── */
@@ -704,8 +725,10 @@ const DocPreview = React.forwardRef(function DocPreview({
           {[
             {label:"Subtotal",val:subtotal,isDeposit:false,isBold:false},
             ...(tacAmt>0?[{label:`TAC${tacType==="pct"?" ("+tac+"%)":""}`,val:tacAmt,isDeposit:true,isTac:true}]:[]),
-            ...(+deposit?[{label:"Deposit",val:+deposit,isDeposit:true}]:[]),
-            ...(+deposit2?[{label:"",val:+deposit2,isDeposit:true}]:[]),
+            ...depositRows.map(dp=>({
+              label:(dp.note&&dp.note.trim()?dp.note.trim():"Deposit")+(dp.date?` · ${fmtDateShort(dp.date)}`:""),
+              val:+dp.amount||0,isDeposit:true
+            })),
             {label:"SBD Total",val:balance,isDeposit:false,isBold:true,isLast:true},
           ].map((row,i)=>(
             <div key={i} style={{
@@ -765,8 +788,7 @@ function DocEditor({onSave, initialDoc}){
   const [clientEmail,setClientEmail]=useState(initialDoc?.clientEmail||"");
   const [currency,setCurrency]=useState(initialDoc?.currency||"SBD");
   const [rates,setRates]=useState({...defaultRates,...(initialDoc?.rates||{})});
-  const [deposit,setDeposit]=useState(initialDoc?.deposit||0);
-  const [deposit2,setDeposit2]=useState(initialDoc?.deposit2||0);
+  const [deposits,setDeposits]=useState(()=>depositList(initialDoc));
   const [tac,setTac]=useState(initialDoc?.tac||0);
   const [tacType,setTacType]=useState(initialDoc?.tacType||"pct");
   const [notes,setNotes]=useState(initialDoc?.notes||'The rate has the following inclusions:\n- All currently applicable taxes\n- Full buffet breakfast\n- Unlimited wifi\n- Bottled drinking water\n- Daily newspapers');
@@ -787,14 +809,18 @@ function DocEditor({onSave, initialDoc}){
 
   const lines=items.filter(i=>i.type==="line");
   const subtotal=lines.reduce((s,l)=>s+l.qty*l.days*l.unitPrice,0);
-  const totalDeposit=(+deposit)+(+deposit2);
+  const totalDeposit=deposits.reduce((s,x)=>s+(+x.amount||0),0);
   const tacAmt=tacType==="pct"?subtotal*(+tac)/100:+(+tac);
   const balance=subtotal-tacAmt-totalDeposit;
+
+  const updateDeposit=(id,patch)=>setDeposits(prev=>prev.map(x=>x.id===id?{...x,...patch}:x));
+  const addDeposit=()=>setDeposits(prev=>[...prev,emptyDeposit()]);
+  const removeDeposit=(id)=>setDeposits(prev=>prev.filter(x=>x.id!==id));
 
   const docObj={
     id:initialDoc?.id||Date.now(),
     docType,docNumber,docDate,dueDate,toName,company,phone,clientEmail,
-    currency,rates,deposit,deposit2,tac,tacType,notes,eventLabel,salesperson,
+    currency,rates,deposits,tac,tacType,notes,eventLabel,salesperson,
     items,subtotal,balance
   };
 
@@ -926,9 +952,40 @@ function DocEditor({onSave, initialDoc}){
         </EditorCard>
 
         <EditorCard title="Deposits Received" mb={12}>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
-            <div><EditorLabelSm>Deposit 1 (SBD)</EditorLabelSm><input type="number" value={deposit} onChange={e=>setDeposit(+e.target.value)}/></div>
-            <div><EditorLabelSm>Deposit 2 (SBD)</EditorLabelSm><input type="number" value={deposit2} onChange={e=>setDeposit2(+e.target.value)}/></div>
+          {deposits.length===0&&(
+            <div style={{fontSize:11,color:"var(--ink-soft)",padding:"4px 0 10px"}}>No deposits recorded yet.</div>
+          )}
+          {deposits.map((dp,i)=>(
+            <div key={dp.id} style={{border:"1px solid var(--border)",borderRadius:7,padding:"8px 9px",marginBottom:7,background:"var(--paper)"}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:5}}>
+                <span style={{fontSize:10,color:"var(--ink-soft)",textTransform:"uppercase",letterSpacing:".05em"}}>Deposit {i+1}</span>
+                <button onClick={()=>removeDeposit(dp.id)} title="Remove deposit"
+                  style={{border:"none",background:"none",color:"#C0392B",fontSize:15,cursor:"pointer",lineHeight:1,padding:"0 2px"}}>×</button>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:6}}>
+                <div>
+                  <EditorLabelSm>Amount (SBD)</EditorLabelSm>
+                  <input type="number" step="0.01" value={dp.amount}
+                    onChange={e=>updateDeposit(dp.id,{amount:+e.target.value})}/>
+                </div>
+                <div>
+                  <EditorLabelSm>Date received</EditorLabelSm>
+                  <input type="date" value={dp.date||""}
+                    onChange={e=>updateDeposit(dp.id,{date:e.target.value})}/>
+                </div>
+              </div>
+              <EditorLabelSm>Reference / method</EditorLabelSm>
+              <input value={dp.note||""} placeholder="Bank transfer, receipt #…"
+                onChange={e=>updateDeposit(dp.id,{note:e.target.value})}/>
+            </div>
+          ))}
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+            <button onClick={addDeposit} style={{padding:"5px 12px",borderRadius:5,border:"1px dashed var(--border)",background:"transparent",color:"var(--accent)",fontSize:11,cursor:"pointer"}}>+ Add Deposit</button>
+            {deposits.length>0&&(
+              <span style={{fontSize:11,color:"var(--ink-mid)"}}>
+                Total <strong style={{color:"var(--success)"}}>SBD {fmt(totalDeposit)}</strong>
+              </span>
+            )}
           </div>
           <div>
             <EditorLabelSm>TAC — Travel Agent Commission</EditorLabelSm>
@@ -1044,7 +1101,7 @@ function DocEditor({onSave, initialDoc}){
             docType={docType} docNumber={docNumber} docDate={docDate} dueDate={dueDate}
             toName={toName} company={company} phone={phone} clientEmail={clientEmail}
             currency={currency} rates={rates} items={items}
-            subtotal={subtotal} deposit={deposit} deposit2={deposit2} tac={tac} tacType={tacType} balance={balance}
+            subtotal={subtotal} deposits={deposits} tac={tac} tacType={tacType} balance={balance}
             notes={notes} eventLabel={eventLabel} salesperson={salesperson}
             onUpdateItem={updateItem} onRemoveItem={removeItem} onReorderItems={reorderItems}
             onAddLine={addLine} onAddGroup={addGroup}
@@ -1059,7 +1116,7 @@ function DocEditor({onSave, initialDoc}){
           docType={docType} docNumber={docNumber} docDate={docDate} dueDate={dueDate}
           toName={toName} company={company} phone={phone} clientEmail={clientEmail}
           currency={currency} rates={rates} items={items}
-          subtotal={subtotal} deposit={deposit} deposit2={deposit2} tac={tac} tacType={tacType} balance={balance}
+          subtotal={subtotal} deposits={deposits} tac={tac} tacType={tacType} balance={balance}
           notes={notes} eventLabel={eventLabel} salesperson={salesperson}
           onUpdateItem={()=>{}} onRemoveItem={()=>{}}
           onAddLine={()=>{}} onAddGroup={()=>{}}
@@ -1182,22 +1239,114 @@ function Analytics({docs}){
 
 /* ── DOC LIST ── */
 function DocList({docs,onEdit,onDelete,onNew}){
+  const [q,setQ]=useState("");
+  const [typeF,setTypeF]=useState("All");
+  const [statusF,setStatusF]=useState("All");
+  const [fromD,setFromD]=useState("");
+  const [toD,setToD]=useState("");
+  const [sort,setSort]=useState("date-desc");
+
+  const term=q.trim().toLowerCase();
+  const filtered=docs.filter(d=>{
+    if(typeF!=="All"&&d.docType!==typeF) return false;
+    if(statusF!=="All"&&payStatus(d)!==statusF) return false;
+    if(fromD&&(d.docDate||"")<fromD) return false;
+    if(toD&&(d.docDate||"")>toD) return false;
+    if(!term) return true;
+    return [d.docNumber,d.toName,d.company,d.clientEmail,d.eventLabel,d.salesperson]
+      .some(v=>String(v||"").toLowerCase().includes(term));
+  });
+  const sorted=[...filtered].sort((a,b)=>{
+    switch(sort){
+      case "date-asc":     return new Date(a.docDate)-new Date(b.docDate);
+      case "amount-desc":  return (+b.subtotal||0)-(+a.subtotal||0);
+      case "amount-asc":   return (+a.subtotal||0)-(+b.subtotal||0);
+      case "balance-desc": return (+b.balance||0)-(+a.balance||0);
+      default:             return new Date(b.docDate)-new Date(a.docDate);
+    }
+  });
+  const active=term||typeF!=="All"||statusF!=="All"||fromD||toD;
+  const clearAll=()=>{setQ("");setTypeF("All");setStatusF("All");setFromD("");setToD("");};
+  const filteredTotal=sorted.reduce((s,d)=>s+(+d.subtotal||0),0);
+  const filteredBalance=sorted.reduce((s,d)=>s+(+d.balance||0),0);
+
+  const Chip=({on,onClick,children})=>(
+    <button onClick={onClick} style={{
+      padding:"4px 10px",borderRadius:14,fontSize:11,border:"1px solid",
+      background:on?"var(--accent)":"transparent",
+      color:on?"#fff":"var(--ink-mid)",
+      borderColor:on?"var(--accent)":"var(--border)",cursor:"pointer",whiteSpace:"nowrap"
+    }}>{children}</button>
+  );
+
   return(
     <div style={{padding:"22px 28px",maxWidth:960,margin:"0 auto"}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
         <div>
           <h2 style={{fontSize:20,marginBottom:3}}>Documents</h2>
-          <div style={{color:"var(--ink-soft)",fontSize:12}}>{docs.length} total</div>
+          <div style={{color:"var(--ink-soft)",fontSize:12}}>
+            {active?<>Showing <strong style={{color:"var(--ink-mid)"}}>{sorted.length}</strong> of {docs.length}</>:<>{docs.length} total</>}
+          </div>
         </div>
         <button onClick={onNew} style={{padding:"8px 16px",borderRadius:7,border:"none",background:"var(--accent)",color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}}>+ New</button>
       </div>
+
+      {/* Filters */}
+      {docs.length>0&&(
+        <div style={{background:"var(--white)",border:"1px solid var(--border)",borderRadius:9,padding:"12px 14px",marginBottom:14}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:9,flexWrap:"wrap"}}>
+            <input value={q} onChange={e=>setQ(e.target.value)}
+              placeholder="Search number, client, company, email, event, salesperson…"
+              style={{flex:"1 1 260px",fontSize:12}}/>
+            <select value={sort} onChange={e=>setSort(e.target.value)} style={{width:"auto",fontSize:12,flexShrink:0}}>
+              <option value="date-desc">Newest first</option>
+              <option value="date-asc">Oldest first</option>
+              <option value="amount-desc">Largest amount</option>
+              <option value="amount-asc">Smallest amount</option>
+              <option value="balance-desc">Highest balance</option>
+            </select>
+            {active&&(
+              <button onClick={clearAll} style={{padding:"6px 12px",borderRadius:6,border:"1px solid var(--border)",background:"transparent",color:"var(--ink-mid)",fontSize:11,cursor:"pointer",flexShrink:0}}>Clear</button>
+            )}
+          </div>
+          <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:7,alignItems:"center"}}>
+            <span style={{fontSize:10,color:"var(--ink-soft)",textTransform:"uppercase",letterSpacing:".05em",marginRight:2}}>Type</span>
+            <Chip on={typeF==="All"} onClick={()=>setTypeF("All")}>All</Chip>
+            {DOC_TYPES.map(t=><Chip key={t} on={typeF===t} onClick={()=>setTypeF(t)}>{t}</Chip>)}
+          </div>
+          <div style={{display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
+            <span style={{fontSize:10,color:"var(--ink-soft)",textTransform:"uppercase",letterSpacing:".05em",marginRight:2}}>Status</span>
+            <Chip on={statusF==="All"} onClick={()=>setStatusF("All")}>All</Chip>
+            {PAY_STATUSES.map(s=><Chip key={s} on={statusF===s} onClick={()=>setStatusF(s)}>{s}</Chip>)}
+            <span style={{fontSize:10,color:"var(--ink-soft)",textTransform:"uppercase",letterSpacing:".05em",margin:"0 2px 0 10px"}}>Date</span>
+            <input type="date" value={fromD} onChange={e=>setFromD(e.target.value)} style={{width:"auto",fontSize:11,padding:"4px 7px"}}/>
+            <span style={{fontSize:11,color:"var(--ink-soft)"}}>→</span>
+            <input type="date" value={toD} onChange={e=>setToD(e.target.value)} style={{width:"auto",fontSize:11,padding:"4px 7px"}}/>
+          </div>
+          {active&&sorted.length>0&&(
+            <div style={{marginTop:9,paddingTop:9,borderTop:"1px solid var(--paper-dark)",fontSize:11,color:"var(--ink-mid)",display:"flex",gap:18,flexWrap:"wrap"}}>
+              <span>Amount <strong>SBD {fmt(filteredTotal)}</strong></span>
+              <span>Balance <strong style={{color:filteredBalance>0.005?"var(--danger)":"var(--success)"}}>SBD {fmt(filteredBalance)}</strong></span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {docs.length>0&&sorted.length===0&&(
+        <div style={{background:"var(--white)",border:"1px dashed var(--border)",borderRadius:10,padding:"36px 32px",textAlign:"center",color:"var(--ink-soft)",marginBottom:14}}>
+          <div style={{fontSize:24,marginBottom:8}}>🔍</div>
+          <div style={{fontWeight:500,marginBottom:4,color:"var(--ink-mid)"}}>No documents match these filters</div>
+          <button onClick={clearAll} style={{marginTop:8,padding:"6px 14px",borderRadius:6,border:"1px solid var(--border)",background:"transparent",color:"var(--ink-mid)",fontSize:12,cursor:"pointer"}}>Clear filters</button>
+        </div>
+      )}
+
       {docs.length===0?(
         <div style={{background:"var(--white)",border:"1px dashed var(--border)",borderRadius:10,padding:"50px 32px",textAlign:"center",color:"var(--ink-soft)"}}>
           <div style={{fontSize:28,marginBottom:10}}>📄</div>
           <div style={{fontWeight:500,marginBottom:10}}>No documents yet</div>
           <button onClick={onNew} style={{padding:"7px 18px",borderRadius:7,border:"none",background:"var(--gold)",color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}}>Create first document</button>
         </div>
-      ):(
+      ):sorted.length===0?null:(
         <div style={{background:"var(--white)",border:"1px solid var(--border)",borderRadius:9,overflow:"hidden"}}>
           <table style={{fontSize:12}}>
             <thead><tr style={{borderBottom:"1px solid var(--border)",background:"var(--paper)"}}>
@@ -1206,7 +1355,7 @@ function DocList({docs,onEdit,onDelete,onNew}){
               ))}
             </tr></thead>
             <tbody>
-              {[...docs].sort((a,b)=>new Date(b.docDate)-new Date(a.docDate)).map(d=>(
+              {sorted.map(d=>(
                 <tr key={d.id} style={{borderBottom:"1px solid var(--paper-dark)"}}>
                   <td style={{padding:"11px 14px",color:"var(--gold)",fontWeight:600,fontFamily:"var(--font-display)"}}>{d.docNumber||"—"}</td>
                   <td style={{padding:"11px 14px"}}><TypeBadge type={d.docType}/></td>
