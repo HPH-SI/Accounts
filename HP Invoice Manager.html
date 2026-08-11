@@ -154,6 +154,85 @@ function fmtDate(d){
   return `${months[+m-1]} ${+day}, ${y}`;
 }
 
+/* Add n days to a yyyy-mm-dd string, returning the same format. */
+function addDays(dateStr,n){
+  if(!dateStr) return "";
+  const d=new Date(dateStr+"T00:00:00");
+  if(isNaN(d)) return "";
+  d.setDate(d.getDate()+n);
+  return d.toISOString().split("T")[0];
+}
+
+/* Whole days from a yyyy-mm-dd string until today (positive = in the past). */
+function daysPast(dateStr){
+  if(!dateStr) return 0;
+  const d=new Date(dateStr+"T00:00:00"), t=new Date(todayStr()+"T00:00:00");
+  if(isNaN(d)) return 0;
+  return Math.round((t-d)/86400000);
+}
+
+/* ── Receivables ──
+   Only Invoices are money owed to the hotel. Quotations and Proforma Invoices are
+   pipeline, not revenue, and Credit Notes reduce what is owed — so each is signed
+   accordingly rather than blindly summed. */
+const isInvoice     = (d)=>d && d.docType==="Invoice";
+const isCreditNote  = (d)=>d && d.docType==="Credit Note";
+const isPipeline    = (d)=>d && (d.docType==="Quotation"||d.docType==="Proforma Invoice");
+
+/* Signed value of a document toward net invoiced revenue. */
+function signedTotal(d){
+  if(isInvoice(d))    return +d.subtotal||0;
+  if(isCreditNote(d)) return -Math.abs(+d.subtotal||0);
+  return 0; /* quotations & proformas are not revenue until invoiced */
+}
+/* Signed value toward the outstanding balance. */
+function signedBalance(d){
+  if(isInvoice(d))    return +d.balance||0;
+  if(isCreditNote(d)) return -Math.abs(+d.balance||0);
+  return 0;
+}
+const depositsOf = (d)=>(+d.deposit||0)+(+d.deposit2||0);
+
+/* Payment status is derived from the figures on the document rather than stored,
+   so it can never drift out of sync with the amounts staff actually entered. */
+const PAY_STATUSES=["Paid","Partial","Overdue","Unpaid"];
+function payStatus(d){
+  if(!isInvoice(d)) return null;           /* only invoices carry a payment status */
+  if((+d.subtotal||0)<=0.005) return null; /* nothing billed yet — no status to show */
+  if((+d.balance||0)<=0.005) return "Paid";
+  if(d.dueDate && daysPast(d.dueDate)>0) return "Overdue";
+  return depositsOf(d)>0?"Partial":"Unpaid";
+}
+const PAY_COLORS={
+  Paid:   {bg:"#E8F5E9",fg:"var(--success)"},
+  Partial:{bg:"#FFF8E7",fg:"var(--warning)"},
+  Overdue:{bg:"#FDEAEA",fg:"var(--danger)"},
+  Unpaid: {bg:"#EFEFEF",fg:"var(--ink-mid)"},
+};
+const TYPE_COLORS={
+  "Invoice":          {bg:"#E8EEF7",fg:"var(--accent)"},
+  "Quotation":        {bg:"#FFF8E7",fg:"var(--warning)"},
+  "Proforma Invoice": {bg:"#E8F5E9",fg:"var(--success)"},
+  "Credit Note":      {bg:"#FDEAEA",fg:"var(--danger)"},
+};
+function TypeBadge({type,size=10}){
+  const c=TYPE_COLORS[type]||{bg:"var(--paper-dark)",fg:"var(--ink-mid)"};
+  return <span style={{background:c.bg,color:c.fg,padding:"2px 7px",borderRadius:8,fontSize:size,fontWeight:600,whiteSpace:"nowrap"}}>{type}</span>;
+}
+
+function StatusBadge({doc,size=10}){
+  const s=payStatus(doc);
+  if(!s) return <span style={{color:"var(--ink-soft)"}}>—</span>;
+  const c=PAY_COLORS[s];
+  const over=s==="Overdue"?daysPast(doc.dueDate):0;
+  return(
+    <span title={doc.dueDate?`Due ${fmtDate(doc.dueDate)}`:""}
+      style={{background:c.bg,color:c.fg,padding:"2px 7px",borderRadius:8,fontSize:size,fontWeight:600,whiteSpace:"nowrap"}}>
+      {s}{over>0?` ${over}d`:""}
+    </span>
+  );
+}
+
 /* Lines before the first "- ..." bullet are intro text; bullet lines start with "- ". */
 function parseNotesForPreview(notes){
   if(!notes||!notes.trim()) return {intro:"",bullets:[],legacy:false};
@@ -445,7 +524,7 @@ function GroupRow({group, onChange, onRemove, isPrint, dragHandleProps, rowDragP
 
 /* ── DOCUMENT PREVIEW (used for display + PDF capture) ── */
 const DocPreview = React.forwardRef(function DocPreview({
-  docType,docNumber,docDate,toName,company,phone,clientEmail,
+  docType,docNumber,docDate,dueDate,toName,company,phone,clientEmail,
   currency,rates,items,subtotal,deposit,deposit2,tac,tacType,balance,notes,
   eventLabel,salesperson,
   onUpdateItem,onRemoveItem,onAddLine,onAddGroup,onReorderItems,
@@ -507,6 +586,11 @@ const DocPreview = React.forwardRef(function DocPreview({
         <div>
           <div style={{fontFamily:"var(--font-display)",fontSize:24,fontWeight:700,color:"var(--accent)",letterSpacing:".01em"}}>{docType.toUpperCase()}</div>
           {docDate&&<div style={{color:"var(--ink-soft)",fontSize:11,marginTop:1}}>{fmtDate(docDate)}</div>}
+          {dueDate&&docType==="Invoice"&&(
+            <div style={{fontSize:11,marginTop:2,color:daysPast(dueDate)>0?"var(--danger)":"var(--ink-mid)",fontWeight:600}}>
+              Payment due: {fmtDate(dueDate)}
+            </div>
+          )}
           {docNumber&&<div style={{fontSize:11,color:"var(--gold)",fontWeight:600,marginTop:2,letterSpacing:".05em"}}>{docNumber}</div>}
         </div>
         <img src={LOGO_SRC} alt="Heritage Park Hotel" style={{height:60,width:"auto",objectFit:"contain"}}/>
@@ -674,6 +758,7 @@ function DocEditor({onSave, initialDoc}){
   const [docType,setDocType]=useState(initialDoc?.docType||"Invoice");
   const [docNumber,setDocNumber]=useState(initialDoc?.docNumber||"");
   const [docDate,setDocDate]=useState(initialDoc?.docDate||todayStr());
+  const [dueDate,setDueDate]=useState(initialDoc?.dueDate||"");
   const [toName,setToName]=useState(initialDoc?.toName||"");
   const [company,setCompany]=useState(initialDoc?.company||"");
   const [phone,setPhone]=useState(initialDoc?.phone||"");
@@ -708,7 +793,7 @@ function DocEditor({onSave, initialDoc}){
 
   const docObj={
     id:initialDoc?.id||Date.now(),
-    docType,docNumber,docDate,toName,company,phone,clientEmail,
+    docType,docNumber,docDate,dueDate,toName,company,phone,clientEmail,
     currency,rates,deposit,deposit2,tac,tacType,notes,eventLabel,salesperson,
     items,subtotal,balance
   };
@@ -779,9 +864,36 @@ function DocEditor({onSave, initialDoc}){
             <div><EditorLabelSm>Doc Number</EditorLabelSm><input value={docNumber} onChange={e=>setDocNumber(e.target.value)} placeholder="AFP/HPHL/001"/></div>
             <div><EditorLabelSm>Date</EditorLabelSm><input type="date" value={docDate} onChange={e=>setDocDate(e.target.value)}/></div>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
             <div><EditorLabelSm>Salesperson</EditorLabelSm><input value={salesperson} onChange={e=>setSalesperson(e.target.value)} placeholder="YASH"/></div>
             <div><EditorLabelSm>Event</EditorLabelSm><input value={eventLabel} onChange={e=>setEventLabel(e.target.value)} placeholder="Accommodation"/></div>
+          </div>
+          <div>
+            <EditorLabelSm>Payment Due {docType!=="Invoice"&&<span style={{textTransform:"none",letterSpacing:0,opacity:.7}}>(invoices only)</span>}</EditorLabelSm>
+            <input type="date" value={dueDate} min={docDate} onChange={e=>setDueDate(e.target.value)}/>
+            <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:6}}>
+              {[["On receipt",0],["7 days",7],["14 days",14],["30 days",30]].map(([lbl,n])=>{
+                const val=addDays(docDate,n);
+                const on=dueDate===val;
+                return(
+                  <button key={lbl} type="button" onClick={()=>setDueDate(val)} style={{
+                    padding:"3px 9px",borderRadius:12,fontSize:10,border:"1px solid",
+                    background:on?"var(--accent)":"transparent",
+                    color:on?"#fff":"var(--ink-mid)",
+                    borderColor:on?"var(--accent)":"var(--border)",cursor:"pointer"
+                  }}>{lbl}</button>
+                );
+              })}
+              {dueDate&&(
+                <button type="button" onClick={()=>setDueDate("")} style={{padding:"3px 9px",borderRadius:12,fontSize:10,border:"1px solid var(--border)",background:"transparent",color:"var(--ink-soft)",cursor:"pointer"}}>Clear</button>
+              )}
+            </div>
+            {isInvoice(docObj)&&(
+              <div style={{marginTop:8,display:"flex",alignItems:"center",gap:7}}>
+                <span style={{fontSize:10,color:"var(--ink-soft)",textTransform:"uppercase",letterSpacing:".05em"}}>Status</span>
+                <StatusBadge doc={docObj}/>
+              </div>
+            )}
           </div>
         </EditorCard>
 
@@ -929,7 +1041,7 @@ function DocEditor({onSave, initialDoc}){
       <div style={{flex:1,minWidth:0}}>
         <div className="print-doc" className="print-doc-wrapper" style={{background:"var(--white)",border:"1px solid var(--border)",borderRadius:10,boxShadow:"var(--shadow)"}}>
           <DocPreview ref={docRef}
-            docType={docType} docNumber={docNumber} docDate={docDate}
+            docType={docType} docNumber={docNumber} docDate={docDate} dueDate={dueDate}
             toName={toName} company={company} phone={phone} clientEmail={clientEmail}
             currency={currency} rates={rates} items={items}
             subtotal={subtotal} deposit={deposit} deposit2={deposit2} tac={tac} tacType={tacType} balance={balance}
@@ -944,7 +1056,7 @@ function DocEditor({onSave, initialDoc}){
       {/* Hidden print-quality doc for PDF */}
       <div style={{position:"fixed",left:"-9999px",top:0,width:794,background:"#fff",zIndex:-1}}>
         <DocPreview ref={printDocRef}
-          docType={docType} docNumber={docNumber} docDate={docDate}
+          docType={docType} docNumber={docNumber} docDate={docDate} dueDate={dueDate}
           toName={toName} company={company} phone={phone} clientEmail={clientEmail}
           currency={currency} rates={rates} items={items}
           subtotal={subtotal} deposit={deposit} deposit2={deposit2} tac={tac} tacType={tacType} balance={balance}
@@ -960,11 +1072,27 @@ function DocEditor({onSave, initialDoc}){
 
 /* ── ANALYTICS ── */
 function Analytics({docs}){
-  const total=docs.reduce((s,d)=>s+d.subtotal,0);
-  const paid=docs.reduce((s,d)=>s+(+d.deposit)+(+d.deposit2),0);
-  const outstanding=total-paid;
+  /* Net of credit notes; quotations & proformas are pipeline, not revenue. */
+  const total=docs.reduce((s,d)=>s+signedTotal(d),0);
+  const paid=docs.filter(d=>!isPipeline(d)).reduce((s,d)=>s+depositsOf(d),0);
+  const outstanding=docs.reduce((s,d)=>s+signedBalance(d),0);
+  const pipeline=docs.filter(isPipeline).reduce((s,d)=>s+(+d.subtotal||0),0);
+  const credited=docs.filter(isCreditNote).reduce((s,d)=>s+Math.abs(+d.subtotal||0),0);
   const byType=DOC_TYPES.map(t=>({type:t,count:docs.filter(d=>d.docType===t).length}));
   const recent=[...docs].sort((a,b)=>new Date(b.docDate)-new Date(a.docDate)).slice(0,10);
+
+  /* Aging of unpaid invoice balances, bucketed by how overdue they are. */
+  const openInvoices=docs.filter(d=>isInvoice(d)&&(+d.balance||0)>0.005);
+  const buckets=[
+    {label:"Not yet due",test:d=>!d.dueDate||daysPast(d.dueDate)<=0,color:"var(--ink-mid)"},
+    {label:"1–30 days",  test:d=>d.dueDate&&daysPast(d.dueDate)>0 &&daysPast(d.dueDate)<=30,color:"var(--warning)"},
+    {label:"31–60 days", test:d=>d.dueDate&&daysPast(d.dueDate)>30&&daysPast(d.dueDate)<=60,color:"#C0392B"},
+    {label:"60+ days",   test:d=>d.dueDate&&daysPast(d.dueDate)>60,color:"var(--danger)"},
+  ].map(b=>{
+    const ds=openInvoices.filter(b.test);
+    return{...b,count:ds.length,amount:ds.reduce((s,d)=>s+(+d.balance||0),0)};
+  });
+  const overdueTotal=buckets.slice(1).reduce((s,b)=>s+b.amount,0);
 
   const Stat=({label,value,color="var(--ink)",sub})=>(
     <div style={{background:"var(--white)",border:"1px solid var(--border)",borderRadius:9,padding:"14px 18px",flex:1}}>
@@ -978,10 +1106,36 @@ function Analytics({docs}){
     <div style={{padding:"22px 28px",maxWidth:960,margin:"0 auto"}}>
       <h2 style={{fontSize:20,marginBottom:4}}>Analytics & Reconciliation</h2>
       <div style={{color:"var(--ink-soft)",fontSize:12,marginBottom:20}}>{docs.length} document{docs.length!==1?"s":""} on record</div>
-      <div style={{display:"flex",gap:10,marginBottom:14,flexWrap:"wrap"}}>
-        <Stat label="Total Invoiced" value={`SBD ${fmt(total)}`} sub={`${docs.length} documents`}/>
+      <div style={{display:"flex",gap:10,marginBottom:10,flexWrap:"wrap"}}>
+        <Stat label="Net Invoiced" value={`SBD ${fmt(total)}`}
+          sub={credited>0?`Invoices less SBD ${fmt(credited)} credited`:`${docs.filter(isInvoice).length} invoice${docs.filter(isInvoice).length!==1?"s":""}`}/>
         <Stat label="Deposits Received" value={`SBD ${fmt(paid)}`} color="var(--success)" sub="Collected"/>
-        <Stat label="Outstanding" value={`SBD ${fmt(outstanding)}`} color={outstanding>0?"var(--danger)":"var(--success)"} sub="Balance due"/>
+        <Stat label="Outstanding" value={`SBD ${fmt(outstanding)}`} color={outstanding>0.005?"var(--danger)":"var(--success)"} sub="Owed on invoices"/>
+        <Stat label="Overdue" value={`SBD ${fmt(overdueTotal)}`} color={overdueTotal>0.005?"var(--danger)":"var(--success)"}
+          sub={overdueTotal>0.005?"Past due date":"Nothing past due"}/>
+      </div>
+      <div style={{display:"flex",gap:10,marginBottom:14,flexWrap:"wrap"}}>
+        <Stat label="Pipeline" value={`SBD ${fmt(pipeline)}`} color="var(--ink-mid)" sub="Quotations & proformas — not yet revenue"/>
+      </div>
+
+      {/* Aging of open invoice balances */}
+      <div style={{background:"var(--white)",border:"1px solid var(--border)",borderRadius:9,overflow:"hidden",marginBottom:20}}>
+        <div style={{padding:"12px 18px",borderBottom:"1px solid var(--border)",fontWeight:600,fontFamily:"var(--font-display)",fontSize:13}}>
+          Receivables Aging
+          <span style={{fontWeight:400,fontSize:11,color:"var(--ink-soft)",marginLeft:8}}>{openInvoices.length} open invoice{openInvoices.length!==1?"s":""}</span>
+        </div>
+        {openInvoices.length===0
+          ?<div style={{padding:"24px",textAlign:"center",color:"var(--ink-soft)",fontSize:12}}>Nothing outstanding — all invoices settled.</div>
+          :<div style={{display:"flex",flexWrap:"wrap"}}>
+            {buckets.map((b,i)=>(
+              <div key={b.label} style={{flex:"1 1 140px",padding:"12px 18px",borderLeft:i?"1px solid var(--paper-dark)":"none"}}>
+                <div style={{fontSize:10,color:"var(--ink-soft)",textTransform:"uppercase",letterSpacing:".05em",marginBottom:4}}>{b.label}</div>
+                <div style={{fontSize:15,fontWeight:700,fontFamily:"var(--font-display)",color:b.amount>0.005?b.color:"var(--ink-soft)"}}>SBD {fmt(b.amount)}</div>
+                <div style={{fontSize:10,color:"var(--ink-soft)",marginTop:2}}>{b.count} invoice{b.count!==1?"s":""}</div>
+              </div>
+            ))}
+          </div>
+        }
       </div>
       <div style={{display:"flex",gap:10,marginBottom:20}}>
         {byType.map(b=>(
@@ -997,7 +1151,7 @@ function Analytics({docs}){
           ?<div style={{padding:"32px",textAlign:"center",color:"var(--ink-soft)",fontSize:13}}>No documents yet.</div>
           :<table style={{fontSize:12}}>
             <thead><tr style={{borderBottom:"1px solid var(--border)"}}>
-              {["#","Type","To","Company","Date","Subtotal","Deposits","Balance"].map(h=>(
+              {["#","Type","Status","To","Company","Date","Due","Subtotal","Deposits","Balance"].map(h=>(
                 <th key={h} style={{padding:"9px 14px",textAlign:["Subtotal","Deposits","Balance"].includes(h)?"right":"left"}}>{h}</th>
               ))}
             </tr></thead>
@@ -1005,16 +1159,14 @@ function Analytics({docs}){
               {recent.map(d=>(
                 <tr key={d.id} style={{borderBottom:"1px solid var(--paper-dark)"}}>
                   <td style={{padding:"9px 14px",color:"var(--gold)",fontWeight:600}}>{d.docNumber||"—"}</td>
-                  <td style={{padding:"9px 14px"}}><span style={{
-                    background:d.docType==="Invoice"?"#E8EEF7":d.docType==="Quotation"?"#FFF8E7":"#E8F5E9",
-                    color:d.docType==="Invoice"?"var(--accent)":d.docType==="Quotation"?"var(--warning)":"var(--success)",
-                    padding:"2px 7px",borderRadius:8,fontSize:10,fontWeight:600
-                  }}>{d.docType}</span></td>
+                  <td style={{padding:"9px 14px"}}><TypeBadge type={d.docType}/></td>
+                  <td style={{padding:"9px 14px"}}><StatusBadge doc={d}/></td>
                   <td style={{padding:"9px 14px",fontWeight:500}}>{d.toName||"—"}</td>
                   <td style={{padding:"9px 14px",color:"var(--ink-soft)"}}>{d.company||"—"}</td>
                   <td style={{padding:"9px 14px",color:"var(--ink-soft)"}}>{d.docDate||"—"}</td>
+                  <td style={{padding:"9px 14px",color:d.dueDate&&daysPast(d.dueDate)>0&&(+d.balance||0)>0.005?"var(--danger)":"var(--ink-soft)"}}>{d.dueDate||"—"}</td>
                   <td style={{padding:"9px 14px",textAlign:"right"}}>SBD {fmt(d.subtotal)}</td>
-                  <td style={{padding:"9px 14px",textAlign:"right",color:"var(--success)"}}>SBD {fmt((+d.deposit)+(+d.deposit2))}</td>
+                  <td style={{padding:"9px 14px",textAlign:"right",color:"var(--success)"}}>SBD {fmt(depositsOf(d))}</td>
                   <td style={{padding:"9px 14px",textAlign:"right",fontWeight:600,color:d.balance>0?"var(--danger)":"var(--success)"}}>
                     {d.balance>0?`SBD ${fmt(d.balance)}`:"✓ Paid"}
                   </td>
@@ -1049,7 +1201,7 @@ function DocList({docs,onEdit,onDelete,onNew}){
         <div style={{background:"var(--white)",border:"1px solid var(--border)",borderRadius:9,overflow:"hidden"}}>
           <table style={{fontSize:12}}>
             <thead><tr style={{borderBottom:"1px solid var(--border)",background:"var(--paper)"}}>
-              {["Number","Type","To","Company","Date","Amount","Balance",""].map(h=>(
+              {["Number","Type","Status","To","Company","Date","Due","Amount","Balance",""].map(h=>(
                 <th key={h} style={{padding:"9px 14px",textAlign:["Amount","Balance"].includes(h)?"right":"left"}}>{h}</th>
               ))}
             </tr></thead>
@@ -1057,14 +1209,12 @@ function DocList({docs,onEdit,onDelete,onNew}){
               {[...docs].sort((a,b)=>new Date(b.docDate)-new Date(a.docDate)).map(d=>(
                 <tr key={d.id} style={{borderBottom:"1px solid var(--paper-dark)"}}>
                   <td style={{padding:"11px 14px",color:"var(--gold)",fontWeight:600,fontFamily:"var(--font-display)"}}>{d.docNumber||"—"}</td>
-                  <td style={{padding:"11px 14px"}}><span style={{
-                    background:d.docType==="Invoice"?"#E8EEF7":d.docType==="Quotation"?"#FFF8E7":"#E8F5E9",
-                    color:d.docType==="Invoice"?"var(--accent)":d.docType==="Quotation"?"var(--warning)":"var(--success)",
-                    padding:"2px 7px",borderRadius:8,fontSize:10,fontWeight:600
-                  }}>{d.docType}</span></td>
+                  <td style={{padding:"11px 14px"}}><TypeBadge type={d.docType}/></td>
+                  <td style={{padding:"11px 14px"}}><StatusBadge doc={d}/></td>
                   <td style={{padding:"11px 14px",fontWeight:500}}>{d.toName||"—"}</td>
                   <td style={{padding:"11px 14px",color:"var(--ink-soft)"}}>{d.company||"—"}</td>
                   <td style={{padding:"11px 14px",color:"var(--ink-soft)"}}>{d.docDate||"—"}</td>
+                  <td style={{padding:"11px 14px",color:d.dueDate&&daysPast(d.dueDate)>0&&(+d.balance||0)>0.005?"var(--danger)":"var(--ink-soft)"}}>{d.dueDate||"—"}</td>
                   <td style={{padding:"11px 14px",textAlign:"right"}}>SBD {fmt(d.subtotal)}</td>
                   <td style={{padding:"11px 14px",textAlign:"right",fontWeight:600,color:d.balance>0?"var(--danger)":"var(--success)"}}>
                     {d.balance>0?`SBD ${fmt(d.balance)}`:"✓ Paid"}
