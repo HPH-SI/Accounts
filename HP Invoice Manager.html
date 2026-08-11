@@ -213,6 +213,11 @@ function depositList(d){
 }
 const depositsOf = (d)=>depositList(d).reduce((s,x)=>s+(+x.amount||0),0);
 
+/* Ids are assigned from Date.now() when a document is first created and kept
+   through edits, so id doubles as "when it was made". docDate is the invoice
+   date, which staff can set to anything, so it cannot order by creation. */
+const createdAt = (d)=>+d.id||0;
+
 /* Payment status is derived from the figures on the document rather than stored,
    so it can never drift out of sync with the amounts staff actually entered. */
 const PAY_STATUSES=["Paid","Partial","Overdue","Unpaid"];
@@ -1136,7 +1141,8 @@ function Analytics({docs}){
   const pipeline=docs.filter(isPipeline).reduce((s,d)=>s+(+d.subtotal||0),0);
   const credited=docs.filter(isCreditNote).reduce((s,d)=>s+Math.abs(+d.subtotal||0),0);
   const byType=DOC_TYPES.map(t=>({type:t,count:docs.filter(d=>d.docType===t).length}));
-  const recent=[...docs].sort((a,b)=>new Date(b.docDate)-new Date(a.docDate)).slice(0,10);
+  /* Latest created first; the header says "All Documents", so show them all. */
+  const recent=[...docs].sort((a,b)=>createdAt(b)-createdAt(a));
 
   /* Aging of unpaid invoice balances, bucketed by how overdue they are. */
   const openInvoices=docs.filter(d=>isInvoice(d)&&(+d.balance||0)>0.005);
@@ -1242,31 +1248,45 @@ function DocList({docs,onEdit,onDelete,onNew}){
   const [q,setQ]=useState("");
   const [typeF,setTypeF]=useState("All");
   const [statusF,setStatusF]=useState("All");
+  const [salesF,setSalesF]=useState("All");
   const [fromD,setFromD]=useState("");
   const [toD,setToD]=useState("");
-  const [sort,setSort]=useState("date-desc");
+  const [sort,setSort]=useState("created-desc");
+
+  /* Salespeople actually present on the documents, so the list stays accurate
+     without anyone maintaining a separate roster. */
+  const salespeople=[...new Set(docs.map(d=>String(d.salesperson||"").trim()).filter(Boolean))]
+    .sort((a,b)=>a.localeCompare(b));
+  const anyUnassigned=docs.some(d=>!String(d.salesperson||"").trim());
 
   const term=q.trim().toLowerCase();
   const filtered=docs.filter(d=>{
     if(typeF!=="All"&&d.docType!==typeF) return false;
     if(statusF!=="All"&&payStatus(d)!==statusF) return false;
+    const sp=String(d.salesperson||"").trim();
+    if(salesF==="—Unassigned"){ if(sp) return false; }
+    else if(salesF!=="All"&&sp!==salesF) return false;
     if(fromD&&(d.docDate||"")<fromD) return false;
     if(toD&&(d.docDate||"")>toD) return false;
     if(!term) return true;
     return [d.docNumber,d.toName,d.company,d.clientEmail,d.eventLabel,d.salesperson]
       .some(v=>String(v||"").toLowerCase().includes(term));
   });
+  /* Newest-created always wins ties so the document just saved sits on top,
+     whatever invoice date was entered on it. */
+  const byNewest=(a,b)=>createdAt(b)-createdAt(a);
   const sorted=[...filtered].sort((a,b)=>{
     switch(sort){
-      case "date-asc":     return new Date(a.docDate)-new Date(b.docDate);
-      case "amount-desc":  return (+b.subtotal||0)-(+a.subtotal||0);
-      case "amount-asc":   return (+a.subtotal||0)-(+b.subtotal||0);
-      case "balance-desc": return (+b.balance||0)-(+a.balance||0);
-      default:             return new Date(b.docDate)-new Date(a.docDate);
+      case "date-desc":    return (new Date(b.docDate)-new Date(a.docDate))||byNewest(a,b);
+      case "date-asc":     return (new Date(a.docDate)-new Date(b.docDate))||byNewest(a,b);
+      case "amount-desc":  return ((+b.subtotal||0)-(+a.subtotal||0))||byNewest(a,b);
+      case "amount-asc":   return ((+a.subtotal||0)-(+b.subtotal||0))||byNewest(a,b);
+      case "balance-desc": return ((+b.balance||0)-(+a.balance||0))||byNewest(a,b);
+      default:             return byNewest(a,b);
     }
   });
-  const active=term||typeF!=="All"||statusF!=="All"||fromD||toD;
-  const clearAll=()=>{setQ("");setTypeF("All");setStatusF("All");setFromD("");setToD("");};
+  const active=term||typeF!=="All"||statusF!=="All"||salesF!=="All"||fromD||toD;
+  const clearAll=()=>{setQ("");setTypeF("All");setStatusF("All");setSalesF("All");setFromD("");setToD("");};
   const filteredTotal=sorted.reduce((s,d)=>s+(+d.subtotal||0),0);
   const filteredBalance=sorted.reduce((s,d)=>s+(+d.balance||0),0);
 
@@ -1299,8 +1319,9 @@ function DocList({docs,onEdit,onDelete,onNew}){
               placeholder="Search number, client, company, email, event, salesperson…"
               style={{flex:"1 1 260px",fontSize:12}}/>
             <select value={sort} onChange={e=>setSort(e.target.value)} style={{width:"auto",fontSize:12,flexShrink:0}}>
-              <option value="date-desc">Newest first</option>
-              <option value="date-asc">Oldest first</option>
+              <option value="created-desc">Latest created</option>
+              <option value="date-desc">Document date — newest</option>
+              <option value="date-asc">Document date — oldest</option>
               <option value="amount-desc">Largest amount</option>
               <option value="amount-asc">Smallest amount</option>
               <option value="balance-desc">Highest balance</option>
@@ -1323,6 +1344,14 @@ function DocList({docs,onEdit,onDelete,onNew}){
             <span style={{fontSize:11,color:"var(--ink-soft)"}}>→</span>
             <input type="date" value={toD} onChange={e=>setToD(e.target.value)} style={{width:"auto",fontSize:11,padding:"4px 7px"}}/>
           </div>
+          {(salespeople.length>0||anyUnassigned)&&(
+            <div style={{display:"flex",gap:5,flexWrap:"wrap",alignItems:"center",marginTop:7}}>
+              <span style={{fontSize:10,color:"var(--ink-soft)",textTransform:"uppercase",letterSpacing:".05em",marginRight:2}}>Salesperson</span>
+              <Chip on={salesF==="All"} onClick={()=>setSalesF("All")}>All</Chip>
+              {salespeople.map(s=><Chip key={s} on={salesF===s} onClick={()=>setSalesF(s)}>{s}</Chip>)}
+              {anyUnassigned&&<Chip on={salesF==="—Unassigned"} onClick={()=>setSalesF("—Unassigned")}>Unassigned</Chip>}
+            </div>
+          )}
           {active&&sorted.length>0&&(
             <div style={{marginTop:9,paddingTop:9,borderTop:"1px solid var(--paper-dark)",fontSize:11,color:"var(--ink-mid)",display:"flex",gap:18,flexWrap:"wrap"}}>
               <span>Amount <strong>SBD {fmt(filteredTotal)}</strong></span>
@@ -1360,7 +1389,12 @@ function DocList({docs,onEdit,onDelete,onNew}){
                   <td style={{padding:"11px 14px",color:"var(--gold)",fontWeight:600,fontFamily:"var(--font-display)"}}>{d.docNumber||"—"}</td>
                   <td style={{padding:"11px 14px"}}><TypeBadge type={d.docType}/></td>
                   <td style={{padding:"11px 14px"}}><StatusBadge doc={d}/></td>
-                  <td style={{padding:"11px 14px",fontWeight:500}}>{d.toName||"—"}</td>
+                  <td style={{padding:"11px 14px",fontWeight:500}}>
+                    {d.toName||"—"}
+                    {String(d.salesperson||"").trim()&&(
+                      <div style={{fontWeight:400,fontSize:10,color:"var(--ink-soft)",marginTop:2}}>by {d.salesperson}</div>
+                    )}
+                  </td>
                   <td style={{padding:"11px 14px",color:"var(--ink-soft)"}}>{d.company||"—"}</td>
                   <td style={{padding:"11px 14px",color:"var(--ink-soft)"}}>{d.docDate||"—"}</td>
                   <td style={{padding:"11px 14px",color:d.dueDate&&daysPast(d.dueDate)>0&&(+d.balance||0)>0.005?"var(--danger)":"var(--ink-soft)"}}>{d.dueDate||"—"}</td>
