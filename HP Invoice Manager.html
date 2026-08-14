@@ -1252,6 +1252,11 @@ const stickyCell=(bg)=>({
   boxShadow:"-6px 0 6px -6px rgba(0,0,0,.13)",
 });
 
+/* Salesperson names are typed by hand, so "Delma"/"DELMA" and "Joy Nisha"/
+   "Joy NIsha" are one person with two spellings. Group on a case- and
+   spacing-insensitive key rather than rewriting what was saved. */
+const salesKey=(d)=>String((d&&d.salesperson)||"").trim().toLowerCase().replace(/\s+/g," ");
+
 /* ── DOC LIST ── */
 function DocList({docs,onEdit,onDelete,onNew}){
   const [q,setQ]=useState("");
@@ -1263,16 +1268,38 @@ function DocList({docs,onEdit,onDelete,onNew}){
   const [sort,setSort]=useState("created-desc");
 
   /* Salespeople actually present on the documents, so the list stays accurate
-     without anyone maintaining a separate roster. */
-  const salespeople=[...new Set(docs.map(d=>String(d.salesperson||"").trim()).filter(Boolean))]
-    .sort((a,b)=>a.localeCompare(b));
+     without anyone maintaining a separate roster. One chip per person: the
+     spelling shown is the one used most often, preferring not-all-caps. */
+  const salespeople=(()=>{
+    const groups=new Map();
+    docs.forEach(d=>{
+      const k=salesKey(d);
+      if(!k) return;
+      const raw=String(d.salesperson).trim().replace(/\s+/g," ");
+      const g=groups.get(k)||new Map();
+      g.set(raw,(g.get(raw)||0)+1);
+      groups.set(k,g);
+    });
+    /* Lower is tidier: Title Case beats odd casing, which beats SHOUTING. */
+    const style=(s)=>{
+      if(s.split(" ").every(w=>/^[A-Z][a-z'’-]*$/.test(w))) return 0;
+      if(s===s.toUpperCase()&&/[A-Z]/.test(s)) return 2;
+      return 1;
+    };
+    return [...groups.entries()].map(([key,variants])=>({
+      key,
+      label:[...variants.entries()].sort((a,b)=>
+        (b[1]-a[1])||(style(a[0])-style(b[0]))||a[0].localeCompare(b[0])
+      )[0][0],
+    })).sort((a,b)=>a.label.localeCompare(b.label));
+  })();
   const anyUnassigned=docs.some(d=>!String(d.salesperson||"").trim());
 
   const term=q.trim().toLowerCase();
   const filtered=docs.filter(d=>{
     if(typeF!=="All"&&d.docType!==typeF) return false;
     if(statusF!=="All"&&payStatus(d)!==statusF) return false;
-    const sp=String(d.salesperson||"").trim();
+    const sp=salesKey(d);
     if(salesF==="—Unassigned"){ if(sp) return false; }
     else if(salesF!=="All"&&sp!==salesF) return false;
     if(fromD&&(d.docDate||"")<fromD) return false;
@@ -1357,7 +1384,7 @@ function DocList({docs,onEdit,onDelete,onNew}){
             <div style={{display:"flex",gap:5,flexWrap:"wrap",alignItems:"center",marginTop:7}}>
               <span style={{fontSize:10,color:"var(--ink-soft)",textTransform:"uppercase",letterSpacing:".05em",marginRight:2}}>Salesperson</span>
               <Chip on={salesF==="All"} onClick={()=>setSalesF("All")}>All</Chip>
-              {salespeople.map(s=><Chip key={s} on={salesF===s} onClick={()=>setSalesF(s)}>{s}</Chip>)}
+              {salespeople.map(s=><Chip key={s.key} on={salesF===s.key} onClick={()=>setSalesF(s.key)}>{s.label}</Chip>)}
               {anyUnassigned&&<Chip on={salesF==="—Unassigned"} onClick={()=>setSalesF("—Unassigned")}>Unassigned</Chip>}
             </div>
           )}
